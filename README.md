@@ -5,6 +5,7 @@ Android App for Subsonic (that can play .spc files)
 
 
 Installation:
+
 1) Clone this repo
 
 2) Download the android SDK
@@ -19,7 +20,7 @@ Installation:
 
 6) Start a new workspace, and project.  File->import(android project) and import the Subtle folder.
    You will need to create a new run configuration for this project too.
-   
+
 7) Should be able to run the app in the emulator.  
 
 
