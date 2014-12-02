@@ -1,0 +1,79 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:theme="@android:style/Theme.NoTitleBar"
+    tools:context="com.example.subtle.SubtleActivity" >
+    
+    <LinearLayout
+        android:id="@+id/container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_weight=".15"
+        android:orientation="vertical"
+        android:paddingTop="?android:attr/actionBarSize" >
+
+    </LinearLayout>
+    
+    <LinearLayout
+        android:id="@+id/button_wrapper"
+        android:baselineAligned="false"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical" 
+        android:layout_weight=".85"  >
+        <LinearLayout 
+            android:id="@+id/inner_button_wrapper" 
+            android:layout_width="match_parent" 
+            android:layout_height="match_parent"
+            android:layout_weight=".5">
+
+            <Button
+                android:id="@+id/previous_button"
+                style="?android:attr/buttonBarButtonStyle"
+                android:layout_height="wrap_content"
+				android:layout_weight=".33"
+				android:layout_width="0dp"
+				android:padding="0dp"
+                android:text="@string/previous_button"  >
+
+			</Button>
+
+            <Button
+                android:id="@+id/play_button"
+                style="?android:attr/buttonBarButtonStyle"
+                android:layout_height="wrap_content"
+				android:layout_weight=".33"
+				android:layout_width="0dp"
+				android:padding="0dp"
+                android:text="@string/play_button" >
+
+			</Button>
+
+            <Button
+                android:id="@+id/next_button"
+                style="?android:attr/buttonBarButtonStyle"
+                android:layout_height="wrap_content"
+				android:layout_weight=".33"
+				android:layout_width="0dp"
+				android:padding="0dp"
+                android:text="@string/next_button" >
+
+			</Button>
+			
+        </LinearLayout>
+        
+       	<LinearLayout
+		    android:id="@+id/seek_wrapper"
+		    android:layout_width="match_parent"
+		    android:layout_height="match_parent"
+		    android:layout_weight=".5" >
+	
+	      	<SeekBar
+			    android:id="@+id/seek_bar"
+			    android:layout_width="match_parent"
+			    android:layout_height="wrap_content" />
+		</LinearLayout>
+	</LinearLayout>
+</LinearLayout>
