@@ -279,9 +279,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	                	break;
 	                case PLAYBACK_COMPLETE:
 	                	// Playback Complete (carry on!)
-                		if (!queueAdapter.isNext()) { // If there was no next, this will stop instead of repeating
-                			SoundMachine.getInstance().hardStop();
-                		} else {
+                		if (queueAdapter.isNext()) { // If next, play
                 			next(null);
                 		}
                 		break;
@@ -842,7 +840,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     	if (this.queueListView != null && this.queueAdapter != null) {	
     		int start = this.queueListView.getFirstVisiblePosition();
     		int end = this.queueListView.getLastVisiblePosition();
-    		if (this.queueAdapter.currentIndex() >= start && this.queueAdapter.currentIndex() <= end) {
+    		if ((this.queueAdapter.currentIndex() >= start && this.queueAdapter.currentIndex() <= end) || this.queueAdapter.getCount() == 0) {
     			this.queueListView.invalidateViews();
     		}
     	}
@@ -1044,11 +1042,14 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 					for (int position : reverseSortedPositions) {
 						// If Current Track, Stop Playback
 						if (adapter.currentIndex() == position) {
-							SoundMachine.getInstance().hardStop();
+							SoundMachine.getInstance().stop();
 						}
 
 						// Delete Row in View
 						adapter.remove(position);
+						
+						// Refresh Visible Rows
+						parent.invalidateVisibleQueueItems();
     	            }
 				}
 	        });

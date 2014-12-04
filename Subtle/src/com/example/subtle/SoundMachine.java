@@ -28,12 +28,13 @@ public class SoundMachine {
 	/**
 	 * Callbacks
 	 */
+	private static final int SIG_STOP = 0;
 	private static final int SIG_PLAY = 1;
 	private static final int SIG_PAUSE = 2;
 	private static final int SEEK_STATUS_NOT_SEEKING = -1;
 	private static final int SEEK_STATUS_FINISHED_SEEKING = -2;
 	private int largestJNIPlaybackCommand = 2;
-	private void fillBufferCallback(int currentPosition) {		
+	private void fillBufferCallback(int currentPosition) {	
 		// Reset Seek If Needed
 		if (currentPosition == SEEK_STATUS_FINISHED_SEEKING) {
 			currentPosition = this.seekTo;
@@ -45,10 +46,7 @@ public class SoundMachine {
 			if (currentPosition >= (this.currentTrack.getDuration()*1000)) { // Playback Complete, Restart and Pause
 				// Load Last Buffer
 				this.audioTrack.write(this.cBuffer, 0, this.cBuffer.length);
-				
-				// Pause Audio Track
-				this.audioTrack.pause();
-				
+								
 				// Notify Complete
 				notifyPlaybackComplete();
 			} else { // Keep Playing
@@ -61,6 +59,14 @@ public class SoundMachine {
 			if (this.audioTrack.getPlayState() != AudioTrack.PLAYSTATE_PAUSED) {
 				this.audioTrack.pause();
 			}
+		} else if (this.JNIPlaybackCommand == SIG_STOP) {
+			// Stop Audio Track (will play last buffer)
+			if (this.audioTrack.getPlayState() != AudioTrack.PLAYSTATE_STOPPED) {
+				this.audioTrack.stop();
+			}
+			
+			// Set Current Position to Beginning
+			currentPosition = 0;
 		}
 		
 		// Set Current Position
@@ -98,14 +104,12 @@ public class SoundMachine {
 				notifyPlaybackComplete();
 			}
 		});
-		this.onCompleteFlag = false;
 		this.setStopped();
 	}
 	
 	/**
 	 * Sound Machine Resources
 	 */
-	private boolean onCompleteFlag;
 	private MediaPlayer mediaPlayer;
 	private AudioTrack audioTrack;
 	private short[] cBuffer;
@@ -155,7 +159,7 @@ public class SoundMachine {
 			this.audioTrack.write(this.cBuffer, 0, this.cBuffer.length);
 			
 			// Start Paused Buffering
-			JNIPlaybackCommand = 2;
+			JNIPlaybackCommand = SIG_PAUSE;
 			
 			// Queue Track Buffering For Processing
 			Seamstress.getInstance().execute(
@@ -179,21 +183,17 @@ public class SoundMachine {
 	public void play() {
 		if (!isPlaying()) {
 			if (this.currentPlayer instanceof AudioTrack) {
-				if (this.onCompleteFlag) {
-					this.audioTrackCurrentPostion = 0;
-				}
-				this.JNIPlaybackCommand = 1;
+				this.JNIPlaybackCommand = SIG_PLAY;
 			} else {
 				this.mediaPlayer.start();  
 			}
 			setPlaying();
-			this.onCompleteFlag = false;
 		}
 	}
 	public void pause() {
 		if (!isPaused()) {
 			if (this.currentPlayer instanceof AudioTrack) {
-				this.JNIPlaybackCommand = 2;
+				this.JNIPlaybackCommand = SIG_PAUSE;
 			} else {
 				this.mediaPlayer.pause(); 
 			}
@@ -203,25 +203,13 @@ public class SoundMachine {
 	public void stop() {
 		if (!isStopped()) {
 			if (this.currentPlayer instanceof AudioTrack) {
-				this.JNIPlaybackCommand = 0;
+				this.JNIPlaybackCommand = SIG_STOP;
 				this.audioTrackCurrentPostion = 0;
 			} else {
-				this.mediaPlayer.pause();
-				this.mediaPlayer.seekTo(0);
+				this.mediaPlayer.stop();
 			}
 			setStopped();
 		}
-	}
-	
-	public void hardStop() {
-		if (this.currentPlayer instanceof AudioTrack) {
-			this.JNIPlaybackCommand = 0;
-			this.audioTrackCurrentPostion = 0;
-		} else {
-			this.mediaPlayer.seekTo(0);
-			this.mediaPlayer.stop();
-		}
-		setStopped();
 	}
 	
 	public void seek(int msec) {
@@ -238,18 +226,12 @@ public class SoundMachine {
 	}
 	public int getProgress() {
 		int progress = 0;
-		if (!this.onCompleteFlag) {
+		if (!isStopped()) {
 			if (this.currentPlayer instanceof MediaPlayer && this.currentTrack != null) {
-				if (!isStopped()) {
-					progress = (int) (((double)(this.mediaPlayer.getCurrentPosition()/1000) / this.currentTrack.getDuration()) * 100);
-				} else {
-					progress = 0;
-				}
+				progress = (int) (((double)(this.mediaPlayer.getCurrentPosition()/1000) / this.currentTrack.getDuration()) * 100);
 			} else if (this.currentPlayer instanceof AudioTrack && this.currentTrack != null) {
 				progress =  (int) (((double)(this.audioTrackCurrentPostion/1000) / this.currentTrack.getDuration()) * 100);
 			}	
-		} else {
-			progress = 100;
 		}
 		return progress;
 	}
@@ -315,12 +297,12 @@ public class SoundMachine {
 		this.callbackHandler = handler;
 	}
 	public void notifyPlaybackComplete() {
-		this.onCompleteFlag = true;
+		stop();
+		
 		if (this.callbackHandler != null) {
 			Message playbackComplete = Message.obtain();
 			playbackComplete.what = SubtleActivity.PLAYBACK_COMPLETE;
 			this.callbackHandler.sendMessage(playbackComplete);
-			setStopped();
 		}
 	}
 	
@@ -357,7 +339,7 @@ public class SoundMachine {
 	 */
 	public void shutdown() {
 		// Hard Stop
-		this.hardStop();
+		this.stop();
 		
 		// Stop C Thread
 		this.activeThreadID++;

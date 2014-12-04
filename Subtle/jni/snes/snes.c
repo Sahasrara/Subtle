@@ -13,8 +13,17 @@ void convert(const char*, const char *);
 /**
  * Globals
  */
-long sample_rate = 44100; /* number of samples per second */
-int track = 0; /* index of track to play (0 = first) */
+//number of samples per second
+#define SAMPLE_RATE 44100
+// index of track to play (0 = first)
+#define TRACK 0
+
+// Controls
+#define SIG_STOP                      0
+#define SIG_PLAY                      1
+#define SIG_PAUSE                     2
+#define SEEK_STATUS_NOT_SEEKING      -1
+#define SEEK_STATUS_FINISHED_SEEKING -2
 
 
 void
@@ -28,14 +37,14 @@ Java_com_example_subtle_SoundMachine_fillBuffer( JNIEnv* env, jobject callingObj
 
 	/* Open music file in new emulator */
 	Music_Emu* emu;
-	handle_error( gme_open_file( file_path, &emu, sample_rate ) );
+	handle_error( gme_open_file( file_path, &emu, SAMPLE_RATE ) );
 
 	/* Get Track Info */
 	gme_info_t* track_info = NULL;
-	handle_error( gme_track_info( emu, &track_info, track ) );
+	handle_error( gme_track_info( emu, &track_info, TRACK ) );
 
 	/* Start track */
-	handle_error( gme_start_track( emu, track ) );
+	handle_error( gme_start_track( emu, TRACK ) );
 
 	/* Start Filling Buffer */
 	jshort current_state = 0;
@@ -66,16 +75,16 @@ Java_com_example_subtle_SoundMachine_fillBuffer( JNIEnv* env, jobject callingObj
 		/**
 		 * Respond to Control Commands
 		 */
-		if ( activeID != myID ) { // Stop
+		if ( activeID != myID || command == SIG_STOP ) { // stop or new track is now playing
 			/* Exit */
 			break;
-		} else if (seekTo != -1) {
+		} else if (seekTo != SEEK_STATUS_NOT_SEEKING) {
 			/* Seek */
 			handle_error( gme_seek ( emu, seekTo ) );
 
 			/* Report Seek */
-			(*env)->CallVoidMethod(env, callingObject, mid_write, -2); // -2 == Done Seeking
-		} else if ( command == 1 ) { // Play
+			(*env)->CallVoidMethod(env, callingObject, mid_write, SEEK_STATUS_FINISHED_SEEKING);
+		} else if ( command == SIG_PLAY ) {
 			/* If We Finish, Kill Thread */
 			if (gme_tell( emu ) >= track_info->play_length) {
 				/* Write Buffer */
@@ -99,7 +108,7 @@ Java_com_example_subtle_SoundMachine_fillBuffer( JNIEnv* env, jobject callingObj
 
 			/* Write Buffer */
 			(*env)->CallVoidMethod(env, callingObject, mid_write, currentPosition);
-		} else if ( command == 2 ) { // Pause
+		} else if ( command == SIG_PAUSE ) {
 			/* Get Current Position */
 			currentPosition = gme_tell( emu );
 
@@ -132,17 +141,17 @@ Java_com_example_subtle_SoundMachine_convertToWave( JNIEnv* env, jobject calling
 
 	/* Open music file in new emulator */
 	Music_Emu* emu;
-	handle_error( gme_open_file( from_path, &emu, sample_rate ) );
+	handle_error( gme_open_file( from_path, &emu, SAMPLE_RATE ) );
 
 	/* Get Track Info */
 	gme_info_t* track_info = NULL;
-	handle_error( gme_track_info( emu, &track_info, track ) );
+	handle_error( gme_track_info( emu, &track_info, TRACK ) );
 
 	/* Start track */
-	handle_error( gme_start_track( emu, track ) );
+	handle_error( gme_start_track( emu, TRACK ) );
 
 	/* Begin writing to wave file */
-	wave_open( sample_rate, to_path );
+	wave_open( SAMPLE_RATE, to_path );
 	wave_enable_stereo();
 
 	/* Output to Wave */
@@ -174,11 +183,11 @@ Java_com_example_subtle_SNESTrack_loadTrackInfo( JNIEnv* env, jobject callingObj
 
 	/* Load Emulator */
 	Music_Emu* emu;
-	handle_error( gme_open_file( file_path, &emu, sample_rate ) );
+	handle_error( gme_open_file( file_path, &emu, SAMPLE_RATE ) );
 
 	/* Get Track Info */
 	gme_info_t* track_info = NULL;
-	handle_error( gme_track_info( emu, &track_info, track ) );
+	handle_error( gme_track_info( emu, &track_info, TRACK ) );
 
 	/* Get Class Information */
 	jclass thisClass = (*env)->GetObjectClass(env, callingObject);
