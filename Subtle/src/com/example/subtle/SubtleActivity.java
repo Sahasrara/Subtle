@@ -629,7 +629,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     	SoundMachine.getInstance().stop();
 		play(null);
 		UIRefreshThread.setProgressPaused(false);
-		invalidateVisibleQueueItems();
+		invalidateIfCurrentIsVisible();
     }
     public void previous(View view) {
     	UIRefreshThread.setProgressPaused(true);
@@ -637,7 +637,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		SoundMachine.getInstance().stop();
 		play(null);
 		UIRefreshThread.setProgressPaused(false);
-		invalidateVisibleQueueItems();
+		invalidateIfCurrentIsVisible();
     }
     public void play(View view) {
     	ServerFileData current = this.queueAdapter.current();
@@ -665,7 +665,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     	SoundMachine.getInstance().stop();
     	play(null);
     	UIRefreshThread.setProgressPaused(false);
-    	invalidateVisibleQueueItems();
+    	invalidateIfCurrentIsVisible();
     }
 
     /**
@@ -836,7 +836,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	 */
     public static final int QUEUE_SELECTED_COLOR = android.R.color.background_light;
     public static final int QUEUE_DESELECTED_COLOR = android.R.color.background_dark;
-    public void invalidateVisibleQueueItems() {
+    public void invalidateIfCurrentIsVisible() {
     	if (this.queueListView != null && this.queueAdapter != null) {	
     		int start = this.queueListView.getFirstVisiblePosition();
     		int end = this.queueListView.getLastVisiblePosition();
@@ -1023,7 +1023,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	        queueList.enableDragAndDrop();
 	        queueList.setOnItemLongClickListener(new OnItemLongClickListener() {
     	        @Override
-    	        public boolean onItemLongClick(final AdapterView<?> parent, final View view,
+    	        public boolean onItemLongClick(final AdapterView<?> viewAdapter, final View view,
     	                                       final int position, final long id) {
     	            queueList.startDragging(position);
     	            return true;
@@ -1049,7 +1049,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 						adapter.remove(position);
 						
 						// Refresh Visible Rows
-						parent.invalidateVisibleQueueItems();
+						parent.invalidateIfCurrentIsVisible();
     	            }
 				}
 	        });
