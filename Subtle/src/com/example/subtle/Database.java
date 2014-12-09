@@ -13,7 +13,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 public class Database extends SQLiteOpenHelper {
 	
 	// Globals
-	private static int DATABASE_VERSION = 14;
+	private static int DATABASE_VERSION = 19;
 	private static final String DATABASE_NAME = "SubsonicDB";
 	private static final String MUSIC_TABLE = "music";
 	private static final String UID = "uid";

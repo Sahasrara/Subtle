@@ -144,10 +144,11 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		/**
 		 * Setup Cache Directory
 		 */
-		Map<File, Boolean> mounts = new HashMap<File, Boolean>();
+		Map<File, Boolean> mounts = new HashMap<File, Boolean>(); // Location -- exists or not
 		if (isExternalStorageWritable()) {
 			// Get Possible Write Directories
 			File[] cacheLocations = this.getExternalFilesDirs(Environment.DIRECTORY_MUSIC);
+			String secondaryStorage = System.getenv("SECONDARY_STORAGE");
 			for (File cacheLocation : cacheLocations) {
 				cacheLocation = new File(cacheLocation.getAbsolutePath(), CACHE_DIR_NAME);
 				Log.v(SUBTAG, cacheLocation.getAbsolutePath());
@@ -155,7 +156,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 					if (cacheLocation.mkdirs()) {
 						Log.v(SUBTAG, "Succeeded in to creating "+cacheLocation.toString());
 						mounts.put(cacheLocation, true);
-						if (cacheLocation.toString().contains(System.getenv("SECONDARY_STORAGE"))) {
+						if (secondaryStorage != null && cacheLocation.toString().contains(secondaryStorage)) {
 							SubtleActivity.CURRENT_CACHE_LOCATION = cacheLocation;
 						}
 					} else {
@@ -164,7 +165,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 					}
 				} else {
 					mounts.put(cacheLocation, true);
-					String secondaryStorage = System.getenv("SECONDARY_STORAGE");
 					if (secondaryStorage != null && cacheLocation.toString().contains(secondaryStorage)) {
 						SubtleActivity.CURRENT_CACHE_LOCATION = cacheLocation;
 					}
@@ -409,7 +409,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 							xpp = xmlParserFactory.newPullParser();
 							xpp.setInput(new StringReader (new String(response)));
 		                    int eventType = xpp.getEventType();
-		                    while (eventType != XmlPullParser.END_DOCUMENT) {	 
+		                    while (eventType != XmlPullParser.END_DOCUMENT) {
 		                    	if (eventType == XmlPullParser.START_TAG) {
 		                    		if (xpp.getName().equals("child")) {
 		                    			if (Boolean.parseBoolean(xpp.getAttributeValue(null, "isDir"))) {
@@ -420,7 +420,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 			                    			serverFileData.setResourceType(ServerFileData.DIRECTORY_TYPE);
 			                    			serverFileData.setCreated(xpp.getAttributeValue(null, "created"));
 			                    			listing.add(serverFileData);
-		                    			} else {
+		                    			} else if (!Boolean.parseBoolean(xpp.getAttributeValue(null, "isDir"))) {
 		                    				ServerFileData serverFileData = new ServerFileData();
 		                    				serverFileData.setUid(Integer.parseInt(xpp.getAttributeValue(null, "id")));
 		                    				serverFileData.setParent(Integer.parseInt(xpp.getAttributeValue(null, "parent")));
@@ -431,13 +431,25 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 			                    			serverFileData.setGenre(xpp.getAttributeValue(null, "genre"));
 			                    			serverFileData.setSize(Integer.parseInt(xpp.getAttributeValue(null, "size")));
 			                    			serverFileData.setSuffix(xpp.getAttributeValue(null, "suffix"));
-			                    			serverFileData.setDuration(Integer.parseInt(xpp.getAttributeValue(null, "duration")));
+			                    			
+			                    			String durationString = xpp.getAttributeValue(null, "duration");
+			                    			Integer duration = 0;
+			                    			try {
+			                    				duration = Integer.parseInt(durationString);
+			                    			} catch (NumberFormatException e) {
+			                    				Log.e(SUBTAG, "Bad track duration encountered!");
+			                    				break;
+			                    			}
+			                    			serverFileData.setDuration(duration);
+			                    			
 			                    			serverFileData.setBitRate(Integer.parseInt(xpp.getAttributeValue(null, "bitRate")));
 			                    			serverFileData.setServerPath(xpp.getAttributeValue(null, "path"));
 			                    			serverFileData.setCreated(xpp.getAttributeValue(null, "created"));
 			                    			String trackNumber = xpp.getAttributeValue(null, "track");
 			                    			serverFileData.setTrackNumber((trackNumber == null) ? -1 : Integer.parseInt(trackNumber));
 			                    			listing.add(serverFileData);
+		                    			} else {
+		                    				throw new RuntimeException("Encountered unknown tag in directory listing!");
 		                    			}
 		                    		}
 		                    	}
@@ -446,30 +458,23 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 						} catch (Exception e) {
 							throw new RuntimeException("The XML parsing mechanism has failed!", e);
 						}
-						
 						// Clear out Old Data
 						database.deleteChildren(parent.getUid());
-						
 						// Sort by Name
 						Collections.sort(listing, SERVER_FILE_DATA_TITLE_COMPARATOR);
-						
 	                	// Update Database
 						database.addMusic(listing.toArray(new ServerFileData[listing.size()]));
-						
 	                	// Update UI Element
 						browserAdapter.clear();
 						browserAdapter.addAll(listing);
 						refreshBrowser();
-						
 						// Set Current Directory
 						if (!swipeRefreshLayout.isRefreshing()) {
 							// If this refresh was caused by a swipe, we didn't change directory
 							currentDirectory = parent;
 						}
-						
 						// Stop Refresh Animation (if there)
 						setBrowserLoading(false);
-						
 						break;
 	                case MUSIC_FOLDER_LISTING_RETRIEVED:
 	                	// Grab XML byte[]
