@@ -414,13 +414,24 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		                    		if (xpp.getName().equals("child")) {
 		                    			if (Boolean.parseBoolean(xpp.getAttributeValue(null, "isDir"))) {
 		                    				ServerFileData serverFileData = new ServerFileData();
-			                    			serverFileData.setTitle(xpp.getAttributeValue(xpp.getAttributeValue(null, "name"), "title"));
+		                    				
+		                    				// Name or Title
+		                    				String name = xpp.getAttributeValue(null, "name");
+		                    				String title = xpp.getAttributeValue(null, "title");
+		                    				if (name != null) {
+		                    					serverFileData.setTitle(name);
+		                    				} else if (title != null) {
+		                    					serverFileData.setTitle(title);
+		                    				} else {
+		                    					serverFileData.setTitle("NO_NAME");
+		                    				}
+		                    				
 			                    			serverFileData.setUid(Integer.parseInt(xpp.getAttributeValue(null, "id")));
 			                    			serverFileData.setParent(Integer.parseInt(xpp.getAttributeValue(null, "parent")));
 			                    			serverFileData.setResourceType(ServerFileData.DIRECTORY_TYPE);
 			                    			serverFileData.setCreated(xpp.getAttributeValue(null, "created"));
 			                    			listing.add(serverFileData);
-		                    			} else if (!Boolean.parseBoolean(xpp.getAttributeValue(null, "isDir"))) {
+		                    			} else {
 		                    				ServerFileData serverFileData = new ServerFileData();
 		                    				serverFileData.setUid(Integer.parseInt(xpp.getAttributeValue(null, "id")));
 		                    				serverFileData.setParent(Integer.parseInt(xpp.getAttributeValue(null, "parent")));
@@ -448,8 +459,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 			                    			String trackNumber = xpp.getAttributeValue(null, "track");
 			                    			serverFileData.setTrackNumber((trackNumber == null) ? -1 : Integer.parseInt(trackNumber));
 			                    			listing.add(serverFileData);
-		                    			} else {
-		                    				throw new RuntimeException("Encountered unknown tag in directory listing!");
 		                    			}
 		                    		}
 		                    	}
