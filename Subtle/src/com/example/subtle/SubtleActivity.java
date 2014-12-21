@@ -192,13 +192,9 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         /**
          * Setup Fragments
          */
-        this.fragmentViews[BROWSER_FRAGMENT] = new BrowserFragment(); 
-        ((BrowserFragment) this.fragmentViews[BROWSER_FRAGMENT]).setParent(this);
-        this.fragmentViews[QUEUE_FRAGMENT] = new QueueFragment();
-        ((QueueFragment) this.fragmentViews[QUEUE_FRAGMENT]).setParent(this);
-        ((QueueFragment) this.fragmentViews[QUEUE_FRAGMENT]).storeAdapter(this.queueAdapter);
-        this.fragmentViews[SETTINGS_FRAGMENT] = new SettingsFragment();
-        ((SettingsFragment) this.fragmentViews[SETTINGS_FRAGMENT]).setParent(this);
+        this.fragmentViews[BROWSER_FRAGMENT] = new BrowserFragment(this);
+        this.fragmentViews[QUEUE_FRAGMENT] = new QueueFragment(this);
+        this.fragmentViews[SETTINGS_FRAGMENT] = new SettingsFragment(this);
         
         /**
          * Setup Tab Bar
@@ -995,12 +991,13 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	/**
 	 * Tab Fragments
 	 */
-	public static class BrowserFragment extends Fragment implements ParentAwareFragment {
-		private Activity parent;
-		@Override
-		public void setParent(Activity parent) {
-			this.parent = parent;	
+	public static class BrowserFragment extends Fragment {
+		private SubtleActivity parent;
+		public BrowserFragment(SubtleActivity parent) {
+			super();
+			this.parent = parent;
 		}
+		
 	    @Override
 	    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 	    	if (this.parent == null) {
@@ -1013,20 +1010,16 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	        return rootView;
 	    }
 	}
-	public static class QueueFragment extends Fragment implements ParentAwareFragment  {
+	public static class QueueFragment extends Fragment  {
 		private SubtleActivity parent;
 		private QueueAdapter adapter;
-		@Override
-		public void setParent(Activity parent) {
-			if (parent instanceof SubtleActivity) {
-				this.parent = (SubtleActivity) parent;	
-			} else {
-				throw new RuntimeException("QueueFragment cannot accept non SubtleActivity for activity!");
-			}
+		
+		public QueueFragment(SubtleActivity parent) {
+			super();
+			this.parent = parent;
+			this.adapter = this.parent.queueAdapter;
 		}
-		public void storeAdapter(QueueAdapter adapter) {
-			this.adapter = adapter;
-		}
+		
 	    @Override
 	    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 	    	if (this.parent == null) {
@@ -1072,17 +1065,18 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	        return rootView;
 	    }
 	}
-	public static class SettingsFragment extends Fragment implements ParentAwareFragment  {
+	public static class SettingsFragment extends Fragment {
 		private SubtleActivity parent;
 		private EditText username;
 		private EditText password;
 		private EditText serverUrl;
 		private EditText clientName;
 		
-		@Override
-		public void setParent(Activity parent) {
-			this.parent = (SubtleActivity) parent;	
+		public SettingsFragment(SubtleActivity parent) {
+			super();
+			this.parent = parent;
 		}
+		
 	    @Override
 	    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 	    	if (this.parent == null) {
