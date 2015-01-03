@@ -567,6 +567,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         SubsonicServer server = SubsonicServer.getInstance(this);
         ServerFileData root = new ServerFileData();
         root.setResourceType(ServerFileData.ROOT_TYPE);
+        root.setParent(ServerFileData.ROOT_UID);
         
 		// Check Cache (and unlock if cached)
 		List<ServerFileData> children = database.getDirectoryChildren(ServerFileData.ROOT_UID);
@@ -894,7 +895,15 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	public void onBackPressed() {
 		if (this.currentDirectory != null) {
 			// Always grab from cache	
-			this.currentDirectory = this.database.getRow(this.currentDirectory.getParent());
+			Integer parent;
+			try {
+				parent = this.currentDirectory.getParent();
+			} catch (RuntimeException e) {
+				// This 
+				Log.e(SUBTAG, e.getMessage());
+				return;
+			}
+			this.currentDirectory = this.database.getRow(parent);
 			List<ServerFileData> children = this.database.getDirectoryChildren(this.currentDirectory.getUid());
 			Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
 			

@@ -94,11 +94,8 @@ public class QueueAdapter extends ArrayAdapter<ServerFileData> implements Swappa
 	
 	@Override
 	public void swapItems(int index0, int index1) {
-		boolean wasCurrent = false;
-		ServerFileData toMove = this.getItem(index1);
-		if (toMove == this.current) {
-			wasCurrent = true;
-		}
+		Integer curId = this.current.getUid();
+		
 		// Swap Queue Positions
 		if (index0 < this.getCount() && index1 < this.getCount()) {
 			ServerFileData item0 = this.getItem(index0);
@@ -110,8 +107,11 @@ public class QueueAdapter extends ArrayAdapter<ServerFileData> implements Swappa
 			this.remove(item1);
 			this.insert(item0, index1);
 			
-			if (wasCurrent) {
-				this.current = toMove;
+			// Reset Current
+			if (item0.getUid().equals(curId) ) {
+				this.current = item0;
+			} else if (item1.getUid().equals(curId)) {
+				this.current = item1;
 			}
 		}
 	}
