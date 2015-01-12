@@ -42,6 +42,13 @@ public class BrowserAdapter extends ArrayAdapter<ServerFileData> {
 		String trackNumber = (row.getTrackNumber() != -1) ? row.getTrackNumber()+" - " : ""; 
 		viewHolder.title.setText(String.format("%s%s", trackNumber, row.getTitle()));
 		viewHolder.detail.setText((row.getResourceType().intValue() != ServerFileData.FILE_TYPE) ? "" : row.getArtist());
+        
+		// Color Cached
+		if (row.getCached()) {
+			convertView.setBackgroundResource(SubtleActivity.BROWSER_ROW_CACHED);
+		} else {
+			convertView.setBackgroundResource(SubtleActivity.BROWSER_ROW_DECACHED);
+		}
 		convertView.setId(row.getUid());
 		
 		return convertView;

@@ -128,7 +128,31 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     	 * Setup Main Activity View
     	 */
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_subtle);        
+        setContentView(R.layout.activity_subtle);  
+        
+        /**
+         * Logging Uncaught Exceptions
+         */
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread paramThread, Throwable paramThrowable) {
+            	File output = new File(SubtleActivity.CURRENT_CACHE_LOCATION.getAbsolutePath(), "ERROR");
+            	try {
+	            	if (!output.exists()) {
+	            		output.createNewFile();
+	    			}
+	            	
+	            	FileWriter fw = new FileWriter(output.getAbsoluteFile());
+	    			BufferedWriter bw = new BufferedWriter(fw);
+	    			StringWriter errors = new StringWriter();
+	    			paramThrowable.printStackTrace(new PrintWriter(errors));
+	    			bw.write(paramThrowable.getMessage() + "\n" + errors.toString());
+	    			bw.close();
+            	} catch (Exception e) {
+            		
+            	}
+            }
+        });
         
         /**
          * Load Default Preferences
@@ -145,13 +169,18 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		 * Setup Cache Directory
 		 */
 		Map<File, Boolean> mounts = new HashMap<File, Boolean>(); // Location -- exists or not
+		String secondaryStorage = System.getenv("SECONDARY_STORAGE");
 		if (isExternalStorageWritable()) {
 			// Get Possible Write Directories
 			File[] cacheLocations = this.getExternalFilesDirs(Environment.DIRECTORY_MUSIC);
-			String secondaryStorage = System.getenv("SECONDARY_STORAGE");
 			for (File cacheLocation : cacheLocations) {
+				try {
+					Log.v(SUBTAG, "Good cache location: " + cacheLocation.toString());
+				} catch (Exception e) {
+					Log.v(SUBTAG, "Bad cache location found");
+					continue;
+				}
 				cacheLocation = new File(cacheLocation.getAbsolutePath(), CACHE_DIR_NAME);
-				Log.v(SUBTAG, cacheLocation.getAbsolutePath());
 				if (!cacheLocation.exists()) {
 					if (cacheLocation.mkdirs()) {
 						Log.v(SUBTAG, "Succeeded in to creating "+cacheLocation.toString());
@@ -166,6 +195,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				} else {
 					mounts.put(cacheLocation, true);
 					if (secondaryStorage != null && cacheLocation.toString().contains(secondaryStorage)) {
+						Log.v(SUBTAG, "Setting cache location to " + cacheLocation.toString());
 						SubtleActivity.CURRENT_CACHE_LOCATION = cacheLocation;
 					}
 				}
@@ -173,11 +203,12 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		} else {
 			throw new RuntimeException("Could not write to external storage.");
 		}
-
+		
 		// No sdcard, Mount Whatever
 		if (SubtleActivity.CURRENT_CACHE_LOCATION == null) {
 			for (Map.Entry<File, Boolean> entry: mounts.entrySet()) {
 				if (entry.getValue()) {
+					Log.v(SUBTAG, "Could not find external storage, using: " + entry.getKey().toString());
 					SubtleActivity.CURRENT_CACHE_LOCATION = entry.getKey();
 					break;
 				}
@@ -585,31 +616,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		} else {
 	        server.getDirectoryListing(this, root);
 		}
-		
-		
-        /**
-         * Logging Uncaught Exceptions
-         */
-        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-            @Override
-            public void uncaughtException(Thread paramThread, Throwable paramThrowable) {
-            	File output = new File(SubtleActivity.CURRENT_CACHE_LOCATION.getAbsolutePath(), "ERROR");
-            	try {
-	            	if (!output.exists()) {
-	            		output.createNewFile();
-	    			}
-	            	
-	            	FileWriter fw = new FileWriter(output.getAbsoluteFile());
-	    			BufferedWriter bw = new BufferedWriter(fw);
-	    			StringWriter errors = new StringWriter();
-	    			paramThrowable.printStackTrace(new PrintWriter(errors));
-	    			bw.write(paramThrowable.getMessage() + "\n" + errors.toString());
-	    			bw.close();
-            	} catch (Exception e) {
-            		
-            	}
-            }
-        });
     }
 
     
@@ -656,6 +662,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     		SoundMachine soundMachine = SoundMachine.getInstance();
     		if (soundMachine.isPlaying()) { // Pause
     			soundMachine.pause();
+    			setPlayingButton(false);
     		} else if (soundMachine.isStopped()){ // Play
     			try {
     				if (!soundMachine.setTrack(current)) {
@@ -665,8 +672,12 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     				throw new RuntimeException(e);
     			}
         		soundMachine.play();
+        		setPlayingButton(true);
+        		
     		} else if (soundMachine.isPaused()) {
     			soundMachine.play();
+    			setPlayingButton(true);
+    			
     		}	
     	}
     }
@@ -677,6 +688,17 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     	play(null);
     	UIRefreshThread.setProgressPaused(false);
     	invalidateIfCurrentIsVisible();
+    }
+    
+    /**
+     * Playback UI Changes
+     */
+    private void setPlayingButton(boolean isPlaying) {
+    	if (isPlaying) {
+    		this.playButton.setText("Pause");
+    	} else {
+    		this.playButton.setText("Play");
+    	}
     }
 
     /**
@@ -879,6 +901,8 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	/**
 	 * Browser Specific
 	 */
+	public static final int BROWSER_ROW_CACHED = android.R.color.holo_blue_dark;
+	public static final int BROWSER_ROW_DECACHED = android.R.color.background_dark;
 	public void refreshBrowser() {
     	if (this.browserAdapter != null) {	
     		this.browserAdapter.notifyDataSetChanged();
