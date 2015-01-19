@@ -5,19 +5,13 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
-import java.io.StringReader;
 import java.io.StringWriter;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import org.xmlpull.v1.XmlPullParser;
-import org.xmlpull.v1.XmlPullParserException;
-import org.xmlpull.v1.XmlPullParserFactory;
 
 import com.nhaarman.listviewanimations.itemmanipulation.DynamicListView;
 import com.nhaarman.listviewanimations.itemmanipulation.swipedismiss.OnDismissCallback;
@@ -42,6 +36,7 @@ import android.os.Message;
 import android.support.v4.app.FragmentActivity;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -55,6 +50,7 @@ import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
+import android.widget.Toast;
 
 
 public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeListener, TabListener {
@@ -73,11 +69,10 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	public static final int SEEK_MESSAGE = 2;
 	public static final int DOWNLOAD_PROGRESS_MESSAGE = 3;
 	public static final int DOWNLOAD_COMPLETE = 4;
-	public static final int DIRECTORY_LISTING_RETRIEVED = 5;
-	public static final int ROOT_LISTING_RETRIEVED = 6;
-	public static final int MUSIC_FOLDER_LISTING_RETRIEVED = 7;
-	public static final int UNLOCK_BROWSER = 8;
-	public static final int PLAYBACK_COMPLETE = 9;
+	public static final int LISTING_RETRIEVED = 5;
+	public static final int UNLOCK_BROWSER = 6;
+	public static final int PLAYBACK_COMPLETE = 7;
+	public static final int PARSED_LISTING = 8;
 	
 	/**
 	 * Comparators
@@ -98,25 +93,19 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	 */
 	public Handler appRefreshHandler;
 	private ActionBar actionBar;
-
-	private ListView browser;
-	private SwipeRefreshLayout swipeRefreshLayout;
-	private ListView queueListView;
-	private QueueAdapter queueAdapter;
 	
 	private Button playButton;
 	private Button prevButton;
 	private Button nextButton;
 	private SeekBar seekBar;
 	private boolean seeking;
+	
+	private static SubtleActivity subtleActivity;
 
-	private BrowserAdapter browserAdapter;
-	private XmlPullParserFactory xmlParserFactory;
 	private Database database;
 	private Tab browserTab;
 	private Tab queueTab;
 	private Tab settingsTab;
-	private ServerFileData currentDirectory;
 	private SystemIntentReceiver systemIntentReceiver;
 	
 	/**
@@ -124,12 +113,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	 */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-    	/**
-    	 * Setup Main Activity View
-    	 */
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_subtle);  
-        
         /**
          * Logging Uncaught Exceptions
          */
@@ -155,16 +138,15 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         });
         
         /**
+         * Set Subtle Activity
+         */
+        SubtleActivity.subtleActivity = this;
+        
+        /**
          * Load Default Preferences
          */
         loadDefaultPreferences();
-        
-        /**
-         * Setup Data Stores
-         */
-		this.browserAdapter = new BrowserAdapter(this, R.layout.browser_row_view);
-		this.queueAdapter = new QueueAdapter(this, R.layout.queue_row_view);
-		
+                		
 		/**
 		 * Setup Cache Directory
 		 */
@@ -220,10 +202,16 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		}
 		Log.v(SUBTAG, "Cache dir is "+SubtleActivity.CURRENT_CACHE_LOCATION);
 
+    	/**
+    	 * Setup Main Activity View
+    	 */
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_subtle);  
+		
         /**
          * Setup Fragments
          */
-        this.fragmentViews[BROWSER_FRAGMENT] = new BrowserFragment(this);
+		this.fragmentViews[BROWSER_FRAGMENT] = new BrowserFragment(this);
         this.fragmentViews[QUEUE_FRAGMENT] = new QueueFragment(this);
         this.fragmentViews[SETTINGS_FRAGMENT] = new SettingsFragment(this);
         
@@ -287,281 +275,75 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         	@Override
         	public void handleMessage(Message inputMessage) {
         		Integer resourceID;
-        		byte[] response;
-        		List<ServerFileData> listing;
-        		XmlPullParser xpp;
-        		ServerFileData parent;
         		switch (inputMessage.what) {
 	                case DIALOG_MESSAGE:
 	                	// Present Dialog Box
 	                	((Dialog) inputMessage.obj).show();
 	                	
 						// Stop Refresh Animation (if there)
-						setBrowserLoading(false);
+	                	((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).setBrowserLoading(false);
 						
 	                    break;
 	                case SEEK_MESSAGE:
 	                	// Update Seek Bar
 	                	updateSeekBar((inputMessage.arg1 > 100) ? 100 : inputMessage.arg1);
+	                	
 	                	break;
 	                case PLAYBACK_COMPLETE:
 	                	// Playback Complete (carry on!)
-                		if (queueAdapter.isNext()) { // If next, play
+                		if (((QueueFragment) fragmentViews[QUEUE_FRAGMENT]).isNext()) { // If next, play
                 			next(null);
                 		}
+                		
                 		break;
 	                case DOWNLOAD_PROGRESS_MESSAGE:	                	
 	                	// Update Progress Bar
 	                	if (currentFragment == QUEUE_FRAGMENT) {
-	                		if (queueListView != null) {
-	                			@SuppressWarnings("unchecked")
-	                			Set<Map.Entry<Integer, Integer>> progresses = (Set<Map.Entry<Integer, Integer>>) inputMessage.obj; // UID - Progress
-	                			int start = queueListView.getFirstVisiblePosition();
-	                			int end = queueListView.getLastVisiblePosition();
-                      			for (Map.Entry<Integer, Integer> entry : progresses) {
-                      				for (int i = start; i <= end; i++) {
-    			                		View childView = queueListView.getChildAt(i - start);
-    			                		if (childView != null) {
-    			                			QueueAdapter.QueueAdapterViewHolder viewHolder = (QueueAdapter.QueueAdapterViewHolder) childView.getTag();
-    			                			
-	    			                		if (viewHolder.id == entry.getKey()) {
-	    			                			ProgressBar progressBar = (ProgressBar) childView.findViewById(R.id.progress_bar);
-	    			                			if (progressBar != null) {
-	    			                				progressBar.setProgress(entry.getValue());
-	    			                			}
-	    			                		}
-    			                		}
-    			                	}
-                      			}
-	                		}
+	                		@SuppressWarnings("unchecked")
+							Set<Map.Entry<Integer, Integer>> progresses = (Set<Map.Entry<Integer, Integer>>) inputMessage.obj; // UID - Progress
+	                		((QueueFragment) fragmentViews[QUEUE_FRAGMENT]).updateDownloadProgresses(progresses);
 	                	}
+	                	
 	                	break;
 	                case DOWNLOAD_COMPLETE:
 	                	resourceID = inputMessage.arg1;
 	                	
 	                	// Update Queue Datastore
-	                	for (int i = 0; i < queueAdapter.getCount(); i++) {
-	                		if (queueAdapter.getItem(i).getUid().equals(resourceID)) {
-	                			queueAdapter.getItem(i).setCached(true);
-	                		}
-	                	}
+	                	((QueueFragment) fragmentViews[QUEUE_FRAGMENT]).setItemCached(resourceID);
 	                	
 	                	// Update Browser Datastore
-	                	for (int i = 0; i < browserAdapter.getCount(); i++) {
-	                		if (browserAdapter.getItem(i).getUid().equals(resourceID)) {
-	                			browserAdapter.getItem(i).setCached(true);
-	                		}
-	                	}
+	                	((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).setCachedInCurrentList(resourceID);
 	                	
 	                	// Update Database
 	                	ServerFileData row = database.getRow(resourceID);
 	                	row.setCached(true);
 	                	database.addMusic(row);
 	                	
-	                	// Update Queue
-	                	if (queueListView != null) {
-		                	for (int i = 0; i < queueListView.getChildCount(); i++) {
-		                		if (queueListView.getChildAt(i).getId() == resourceID) {
-		                			ProgressBar progressBar = (ProgressBar) queueListView.getChildAt(i).findViewById(R.id.progress_bar);
-		                			if (progressBar != null) {
-		                				progressBar.setProgress(100);
-		                			}
-		                		}
-		                	}
-	                	}
-	                	
 	                	break;
-	                case ROOT_LISTING_RETRIEVED:
+	                case LISTING_RETRIEVED:
 	                	// Grab XML byte[]
-	                	response = ((DirectoryResponse) inputMessage.obj).getResponse();
-	                	parent = ((DirectoryResponse) inputMessage.obj).getParent();
+	                	((RawDirectoryListing) inputMessage.obj).parseListing(SubtleActivity.subtleActivity);
 	                	
-	                	// Parse XML
-	                	listing = new ArrayList<ServerFileData>();
-	                	try {
-							xpp = xmlParserFactory.newPullParser();
-							xpp.setInput(new StringReader (new String(response)));
-		                    int eventType = xpp.getEventType();
-		                    while (eventType != XmlPullParser.END_DOCUMENT) {	 
-		                    	if (eventType == XmlPullParser.START_TAG) {
-		                    		if (xpp.getName().equals("musicFolder")) {
-		                    			ServerFileData serverFileData = new ServerFileData();
-		                    			serverFileData.setTitle(xpp.getAttributeValue(null, "name"));
-		                    			serverFileData.setUid(Integer.parseInt(xpp.getAttributeValue(null, "id")));
-		                    			serverFileData.setParent(parent.getUid());
-		                    			serverFileData.setResourceType(ServerFileData.MUSIC_FOLDER_TYPE);
-		                    			listing.add(serverFileData);
-		                    		}
-		                    		
-		                    	}
-								eventType = xpp.next();
-		                    }
-						} catch (Exception e) {
-							throw new RuntimeException("The XML parsing mechanism has failed!", e);
-						}
-	                	
-						// Clear out Old Data
-						database.deleteChildren(parent.getUid());
-						
-						// Sort by Name
-						Collections.sort(listing, SERVER_FILE_DATA_TITLE_COMPARATOR);
-						
-	                	// Update Database
-						database.addMusic(listing.toArray(new ServerFileData[listing.size()]));
-						
-	                	// Update UI Element
-						browserAdapter.clear();
-						browserAdapter.addAll(listing);
-						refreshBrowser();
-						
-						// Set Current Directory
-						if (!swipeRefreshLayout.isRefreshing()) {
-							// If this refresh was caused by a swipe, we didn't change directory
-							currentDirectory = parent;
-						}
-						
-						// Stop Refresh Animation (if there)
-						setBrowserLoading(false);
-						
 						break;
-						
-	                case DIRECTORY_LISTING_RETRIEVED:
-	                	// Grab XML byte[]
-	                	response = ((DirectoryResponse) inputMessage.obj).getResponse();
-	                	parent = ((DirectoryResponse) inputMessage.obj).getParent();
+	                case PARSED_LISTING:
+	                	ParsedDirectoryListing newList = (ParsedDirectoryListing) inputMessage.obj;
 	                	
-	                	// Parse XML
-	                	listing = new ArrayList<ServerFileData>();
-						try {
-							xpp = xmlParserFactory.newPullParser();
-							xpp.setInput(new StringReader (new String(response)));
-		                    int eventType = xpp.getEventType();
-		                    while (eventType != XmlPullParser.END_DOCUMENT) {
-		                    	if (eventType == XmlPullParser.START_TAG) {
-		                    		if (xpp.getName().equals("child")) {
-		                    			if (Boolean.parseBoolean(xpp.getAttributeValue(null, "isDir"))) {
-		                    				ServerFileData serverFileData = new ServerFileData();
-		                    				
-		                    				// Name or Title
-		                    				String name = xpp.getAttributeValue(null, "name");
-		                    				String title = xpp.getAttributeValue(null, "title");
-		                    				if (name != null) {
-		                    					serverFileData.setTitle(name);
-		                    				} else if (title != null) {
-		                    					serverFileData.setTitle(title);
-		                    				} else {
-		                    					serverFileData.setTitle("NO_NAME");
-		                    				}
-		                    				
-			                    			serverFileData.setUid(Integer.parseInt(xpp.getAttributeValue(null, "id")));
-			                    			serverFileData.setParent(Integer.parseInt(xpp.getAttributeValue(null, "parent")));
-			                    			serverFileData.setResourceType(ServerFileData.DIRECTORY_TYPE);
-			                    			serverFileData.setCreated(xpp.getAttributeValue(null, "created"));
-			                    			listing.add(serverFileData);
-		                    			} else {
-		                    				ServerFileData serverFileData = new ServerFileData();
-		                    				serverFileData.setUid(Integer.parseInt(xpp.getAttributeValue(null, "id")));
-		                    				serverFileData.setParent(Integer.parseInt(xpp.getAttributeValue(null, "parent")));
-		                    				serverFileData.setResourceType(ServerFileData.FILE_TYPE);
-			                    			serverFileData.setTitle(xpp.getAttributeValue(null, "title"));
-			                    			serverFileData.setAlbum(xpp.getAttributeValue(null, "album"));
-			                    			serverFileData.setArtist(xpp.getAttributeValue(null, "artist"));
-			                    			serverFileData.setGenre(xpp.getAttributeValue(null, "genre"));
-			                    			serverFileData.setSize(Integer.parseInt(xpp.getAttributeValue(null, "size")));
-			                    			serverFileData.setSuffix(xpp.getAttributeValue(null, "suffix"));
-			                    			
-			                    			String durationString = xpp.getAttributeValue(null, "duration");
-			                    			Integer duration = 0;
-			                    			try {
-			                    				duration = Integer.parseInt(durationString);
-			                    			} catch (NumberFormatException e) {
-			                    				Log.e(SUBTAG, "Bad track duration encountered!");
-			                    				break;
-			                    			}
-			                    			serverFileData.setDuration(duration);
-			                    			
-			                    			serverFileData.setBitRate(Integer.parseInt(xpp.getAttributeValue(null, "bitRate")));
-			                    			serverFileData.setServerPath(xpp.getAttributeValue(null, "path"));
-			                    			serverFileData.setCreated(xpp.getAttributeValue(null, "created"));
-			                    			String trackNumber = xpp.getAttributeValue(null, "track");
-			                    			serverFileData.setTrackNumber((trackNumber == null) ? -1 : Integer.parseInt(trackNumber));
-			                    			listing.add(serverFileData);
-		                    			}
-		                    		}
-		                    	}
-								eventType = xpp.next();
-		                    }
-						} catch (Exception e) {
-							throw new RuntimeException("The XML parsing mechanism has failed!", e);
-						}
 						// Clear out Old Data
-						database.deleteChildren(parent.getUid());
+						database.deleteChildren(newList.getParent().getUid());
 						// Sort by Name
-						Collections.sort(listing, SERVER_FILE_DATA_TITLE_COMPARATOR);
+						Collections.sort(newList.getListing(), SERVER_FILE_DATA_TITLE_COMPARATOR);
 	                	// Update Database
-						database.addMusic(listing.toArray(new ServerFileData[listing.size()]));
+						database.addMusic(newList.getListing().toArray(new ServerFileData[newList.getListing().size()]));
 	                	// Update UI Element
-						browserAdapter.clear();
-						browserAdapter.addAll(listing);
-						refreshBrowser();
+						((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).swapCurrentList(newList.getListing());
 						// Set Current Directory
-						if (!swipeRefreshLayout.isRefreshing()) {
+						if (!((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).isSwipeRefreshing()) {
 							// If this refresh was caused by a swipe, we didn't change directory
-							currentDirectory = parent;
+							((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).setCurrentDirectory(newList.getParent());
 						}
 						// Stop Refresh Animation (if there)
-						setBrowserLoading(false);
-						break;
-	                case MUSIC_FOLDER_LISTING_RETRIEVED:
-	                	// Grab XML byte[]
-	                	response = ((DirectoryResponse) inputMessage.obj).getResponse();
-	                	parent = ((DirectoryResponse) inputMessage.obj).getParent();
-	                	
-	                	// Parse XML
-	                	listing = new ArrayList<ServerFileData>();
-						try {
-							xpp = xmlParserFactory.newPullParser();
-							xpp.setInput(new StringReader (new String(response)));
-		                    int eventType = xpp.getEventType();
-		                    while (eventType != XmlPullParser.END_DOCUMENT) {	 
-		                    	if (eventType == XmlPullParser.START_TAG) {
-		                    		if (xpp.getName().equals("artist")) {
-	                    				ServerFileData serverFileData = new ServerFileData();
-		                    			serverFileData.setTitle(xpp.getAttributeValue(null, "name"));
-		                    			serverFileData.setUid(Integer.parseInt(xpp.getAttributeValue(null, "id")));
-		                    			serverFileData.setParent(parent.getUid());
-		                    			serverFileData.setResourceType(ServerFileData.DIRECTORY_TYPE);
-		                    			listing.add(serverFileData);
-		                    		}
-		                    	}
-								eventType = xpp.next();
-		                    }
-						} catch (Exception e) {
-							throw new RuntimeException("The XML parsing mechanism has failed!", e);
-						}
+						((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).setBrowserLoading(false);
 						
-						// Clear out Old Data
-						database.deleteChildren(parent.getUid());
-						
-						// Sort by Name
-						Collections.sort(listing, SERVER_FILE_DATA_TITLE_COMPARATOR);
-						
-	                	// Update Database
-						database.addMusic(listing.toArray(new ServerFileData[listing.size()]));
-						
-	                	// Update UI Element
-						browserAdapter.clear();
-						browserAdapter.addAll(listing);
-						refreshBrowser();
-						
-						// Set Current Directory
-						if (!swipeRefreshLayout.isRefreshing()) {
-							// If this refresh was caused by a swipe, we didn't change directory
-							currentDirectory = parent;
-						}
-						
-						// Stop Refresh Animation (if there)
-						setBrowserLoading(false);
 						break;
 	            }
             }
@@ -574,14 +356,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         IntentFilter filter = new IntentFilter(Intent.ACTION_HEADSET_PLUG);
         registerReceiver(this.systemIntentReceiver, filter);
         
-        /**
-         * Other Initialization
-         */
-        try {
-			this.xmlParserFactory = XmlPullParserFactory.newInstance();
-		} catch (XmlPullParserException e) {
-			throw new RuntimeException("The XML parsing mechanism has failed!", e);
-		}
         // Setup Sound Machine with Handler for Callbacks
         SoundMachine.getInstance().setHandler(this.appRefreshHandler);
         
@@ -591,31 +365,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         this.database = Database.getInstance(this);
         // Start UI Updater
         UIRefreshThread.start(this.appRefreshHandler, PROGRESS_REFRESH_RATE);
-        
-        /**
-         * Download Root Folder
-         */
-        SubsonicServer server = SubsonicServer.getInstance(this);
-        ServerFileData root = new ServerFileData();
-        root.setResourceType(ServerFileData.ROOT_TYPE);
-        root.setParent(ServerFileData.ROOT_UID);
-        
-		// Check Cache (and unlock if cached)
-		List<ServerFileData> children = database.getDirectoryChildren(ServerFileData.ROOT_UID);
-		Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
-		if (children != null && children.size() > 0) {
-			// Set Current Directory
-			currentDirectory = root;
-			
-			// Setup Adapter Data
-			browserAdapter.clear();
-			browserAdapter.addAll(children);
-			
-			// Refresh Browser
-			refreshBrowser();
-		} else {
-	        server.getDirectoryListing(this, root);
-		}
     }
 
     
@@ -642,22 +391,20 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     }
     public void next(View view) {
     	UIRefreshThread.setProgressPaused(true);
-    	this.queueAdapter.advance();
+    	((QueueFragment) this.fragmentViews[QUEUE_FRAGMENT]).advance();
     	SoundMachine.getInstance().stop();
 		play(null);
 		UIRefreshThread.setProgressPaused(false);
-		invalidateIfCurrentIsVisible();
     }
     public void previous(View view) {
     	UIRefreshThread.setProgressPaused(true);
-    	this.queueAdapter.retreat();
+    	((QueueFragment) this.fragmentViews[QUEUE_FRAGMENT]).retreat();
 		SoundMachine.getInstance().stop();
 		play(null);
 		UIRefreshThread.setProgressPaused(false);
-		invalidateIfCurrentIsVisible();
     }
     public void play(View view) {
-    	ServerFileData current = this.queueAdapter.current();
+    	ServerFileData current = ((QueueFragment) this.fragmentViews[QUEUE_FRAGMENT]).getCurrent();
     	if (current != null && current.getCached()) {
     		SoundMachine soundMachine = SoundMachine.getInstance();
     		if (soundMachine.isPlaying()) { // Pause
@@ -683,11 +430,10 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     }
     public void selectTrack(int index) {
     	UIRefreshThread.setProgressPaused(true);
-    	this.queueAdapter.setCurrent(index);
+    	((QueueFragment) this.fragmentViews[QUEUE_FRAGMENT]).setCurrent(index);
     	SoundMachine.getInstance().stop();
     	play(null);
     	UIRefreshThread.setProgressPaused(false);
-    	invalidateIfCurrentIsVisible();
     }
     
     /**
@@ -704,17 +450,17 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     /**
      * Preferences
      */
-    public static String BASE_URL_KEY = "base_url";
-    public static String USER_KEY = "user";
-    public static String PASSWORD_KEY = "password";
-    public static String CLIENT_NAME_KEY = "client_name";
-    public static String API_VERSION_KEY = "api_version";
+    public static final String BASE_URL_KEY = "base_url";
+    public static final String USER_KEY = "user";
+    public static final String PASSWORD_KEY = "password";
+    public static final String CLIENT_NAME_KEY = "client_name";
+    public static final String API_VERSION_KEY = "api_version";
     
-    public static String DEFAULT_BASE_URL = "http://10.0.2.2:8080/subsonic/";
-    public static String DEFAULT_USER = "admin";
-    public static String DEFAULT_PASSWORD = "admin";
-    public static String DEFAULT_CLIENT_NAME = "Subtle";
-    public static String DEFAULT_API_VERSION = "1.10.2";
+    public static final String DEFAULT_BASE_URL = "http://10.0.2.2:8080/subsonic/";
+    public static final String DEFAULT_USER = "admin";
+    public static final String DEFAULT_PASSWORD = "admin";
+    public static final String DEFAULT_CLIENT_NAME = "Subtle";
+    public static final String DEFAULT_API_VERSION = "1.10.2";
     
     public void loadDefaultPreferences() {
     	SharedPreferences.Editor editor = getPreferences(MODE_PRIVATE).edit();
@@ -869,15 +615,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	 */
     public static final int QUEUE_SELECTED_COLOR = android.R.color.background_light;
     public static final int QUEUE_DESELECTED_COLOR = android.R.color.background_dark;
-    public void invalidateIfCurrentIsVisible() {
-    	if (this.queueListView != null && this.queueAdapter != null) {	
-    		int start = this.queueListView.getFirstVisiblePosition();
-    		int end = this.queueListView.getLastVisiblePosition();
-    		if ((this.queueAdapter.currentIndex() >= start && this.queueAdapter.currentIndex() <= end) || this.queueAdapter.getCount() == 0) {
-    			this.queueListView.invalidateViews();
-    		}
-    	}
-    }
 	private void enqueueSong(ServerFileData song) {
 		if (song.getResourceType() != ServerFileData.FILE_TYPE) {
 			throw new RuntimeException("Enqueued a non-file type resourse!");
@@ -892,10 +629,15 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		}	
 		
 		// Add to Queue
-		this.queueAdapter.enqueue(song);
-	}
-	public void setQueueListView(ListView queueListView) {
-		this.queueListView = queueListView;
+		((QueueFragment) fragmentViews[QUEUE_FRAGMENT]).enqueue(song);
+		
+		// Signal that we queued
+		Context context = getApplicationContext();
+		CharSequence text = "Added to queue";
+		int duration = Toast.LENGTH_SHORT;
+		Toast toast = Toast.makeText(context, text, duration);
+		toast.setGravity(Gravity.BOTTOM | Gravity.CENTER, 0, 0);
+		toast.show();
 	}
 	
 	/**
@@ -903,95 +645,11 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	 */
 	public static final int BROWSER_ROW_CACHED = android.R.color.holo_blue_dark;
 	public static final int BROWSER_ROW_DECACHED = android.R.color.background_dark;
-	public void refreshBrowser() {
-    	if (this.browserAdapter != null) {	
-    		this.browserAdapter.notifyDataSetChanged();
-    	}
-	}
-	public void setBrowserLoading(boolean loading) {
-		if (loading) {
-			this.swipeRefreshLayout.setRefreshing(true);
-		} else {
-			this.swipeRefreshLayout.setRefreshing(false);
-		}
-	}  
 	@Override
 	public void onBackPressed() {
-		if (this.currentDirectory != null) {
-			// Always grab from cache	
-			Integer parent;
-			try {
-				parent = this.currentDirectory.getParent();
-			} catch (RuntimeException e) {
-				// This 
-				Log.e(SUBTAG, e.getMessage());
-				return;
-			}
-			this.currentDirectory = this.database.getRow(parent);
-			List<ServerFileData> children = this.database.getDirectoryChildren(this.currentDirectory.getUid());
-			Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
-			
-			// Setup Adapter Data
-			this.browserAdapter.clear();
-			this.browserAdapter.addAll(children);
-			
-			// Refresh Browser
-			refreshBrowser();
+		if (this.fragmentViews[BROWSER_FRAGMENT] != null) {
+			((BrowserFragment) this.fragmentViews[BROWSER_FRAGMENT]).backButtonPressed();
 		}
-	}
-	public void setBrowser(final ListView browser, final SwipeRefreshLayout swipeRefreshLayout) {
-		this.browser = browser;
-		this.swipeRefreshLayout = swipeRefreshLayout;
-		// Setup Adapter
-		this.browser.setAdapter(this.browserAdapter);
-		// Setup Refresh Listener
-		this.swipeRefreshLayout.setColorSchemeResources(
-				android.R.color.holo_blue_dark, 
-				android.R.color.holo_blue_light, 
-				android.R.color.holo_green_light, 
-				android.R.color.holo_green_light);
-		this.swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
-	        @Override
-	        public void onRefresh() {
-	        	swipeRefreshLayout.setRefreshing(true);
-	        	if (currentDirectory == null) {
-	                ServerFileData root = new ServerFileData();
-	                root.setResourceType(ServerFileData.ROOT_TYPE);
-	                SubsonicServer.getInstance(SubtleActivity.this).getDirectoryListing(SubtleActivity.this, root);
-	        	} else {
-		        	SubsonicServer.getInstance(SubtleActivity.this).getDirectoryListing(SubtleActivity.this, currentDirectory);
-	        	}
-	        }
-	    });
-		// Setup Click Listener
-		this.browser.setOnItemClickListener(new OnItemClickListener(){
-			@Override
-			public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-				ServerFileData selectedItem = browserAdapter.getItem(position);
-				SubsonicServer server = SubsonicServer.getInstance(SubtleActivity.this);
-				if (selectedItem.isDirectory()) { // Directory
-					// Check Cache (and unlock if cached)
-					List<ServerFileData> children = database.getDirectoryChildren(selectedItem.getUid());
-					Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
-					if (children != null && children.size() > 0) {
-						// Set Current Directory
-						currentDirectory = selectedItem;
-						
-						// Setup Adapter Data
-						browserAdapter.clear();
-						browserAdapter.addAll(children);
-						
-						// Refresh Browser
-						refreshBrowser();
-					} else {
-						server.getDirectoryListing(SubtleActivity.this, selectedItem);
-					}
-				} else { // File
-					// Queue
-					enqueueSong(browserAdapter.getItem(position));
-				}
-			}
-		});
 	}
 	
     /**
@@ -1025,81 +683,321 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	 * Tab Fragments
 	 */
 	public static class BrowserFragment extends Fragment {
-		private SubtleActivity parent;
-		public BrowserFragment(SubtleActivity parent) {
-			super();
-			this.parent = parent;
+		private ListView browser;
+		private SwipeRefreshLayout swipeRefreshLayout;
+		private BrowserAdapter browserAdapter;
+		private SubtleActivity subtleActivity;
+		private ServerFileData currentDirectory;
+		private OnItemClickListener onItemClickListener;
+		private SwipeRefreshLayout.OnRefreshListener onRefreshListener;
+		
+		public BrowserFragment(final SubtleActivity subtleActivity) {
+			this.subtleActivity = subtleActivity;
+	        this.browserAdapter = new BrowserAdapter(subtleActivity, R.layout.browser_row_view);
+	        
+	        /**
+	         * Create Listeners
+	         */
+	        this.onItemClickListener = new OnItemClickListener(){
+				@Override
+				public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+					ServerFileData selectedItem = browserAdapter.getItem(position);
+					SubsonicServer server = SubsonicServer.getInstance(subtleActivity);
+					if (selectedItem.isDirectory()) { // Directory
+						// Check Cache (and unlock if cached)
+						List<ServerFileData> children = Database.getInstance(subtleActivity).getDirectoryChildren(selectedItem.getUid());
+						Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
+						if (children != null && children.size() > 0) {
+							// Set Current Directory
+							currentDirectory = selectedItem;
+							
+							// Setup Adapter Data
+							browserAdapter.clear();
+							browserAdapter.addAll(children);
+							
+							// Refresh Browser
+							refreshBrowser();
+						} else {
+							server.getDirectoryListing(subtleActivity, selectedItem);
+						}
+					} else { // File
+						// Queue
+						subtleActivity.enqueueSong(browserAdapter.getItem(position));
+					}
+				}
+			};
+			this.onRefreshListener = new SwipeRefreshLayout.OnRefreshListener() {
+		        @Override
+		        public void onRefresh() {
+		        	swipeRefreshLayout.setRefreshing(true);
+		        	if (currentDirectory == null) {
+		                ServerFileData root = new ServerFileData();
+		                root.setResourceType(ServerFileData.ROOT_TYPE);
+		                SubsonicServer.getInstance(subtleActivity).getDirectoryListing(subtleActivity, root);
+		        	} else {
+			        	SubsonicServer.getInstance(subtleActivity).getDirectoryListing(subtleActivity, currentDirectory);
+		        	}
+		        }
+		    };
+	        
+	        /**
+	         * Download Root Folder
+	         */
+	        SubsonicServer server = SubsonicServer.getInstance(subtleActivity);
+	        Database database = Database.getInstance(subtleActivity);
+	        ServerFileData root = new ServerFileData();
+	        root.setResourceType(ServerFileData.ROOT_TYPE);
+	        root.setParent(ServerFileData.ROOT_UID);
+	        
+			// Check Cache (and unlock if cached)
+			List<ServerFileData> children = database.getDirectoryChildren(ServerFileData.ROOT_UID);
+			Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
+			if (children != null && children.size() > 0) {
+				// Set Current Directory
+				setCurrentDirectory(root);
+				
+				// Setup Adapter Data
+				swapCurrentList(children);
+			} else {
+		        server.getDirectoryListing(subtleActivity, root);
+			}
 		}
 		
 	    @Override
 	    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-	    	if (this.parent == null) {
-	    		throw new RuntimeException("Parent never set on fragment!");
-	    	}
-	        View rootView = inflater.inflate(R.layout.browser_fragment, container, false);
-	        ((SubtleActivity) this.parent).setBrowser(
-	        		(ListView) rootView.findViewById(R.id.browser), 
-	        		(SwipeRefreshLayout) rootView.findViewById(R.id.swipe_container));
-	        return rootView;
+	    	// Create View
+	        View view = inflater.inflate(R.layout.browser_fragment, container, false);
+
+			// Get ListView
+			this.browser = (ListView) view.findViewById(R.id.browser);
+			
+			// Get Swipe Refresh layout
+			this.swipeRefreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.swipe_container);
+
+			// Setup Adapter
+			this.browser.setAdapter(this.browserAdapter);
+			
+			// Setup Refresh Colors
+			this.swipeRefreshLayout.setColorSchemeResources(
+					android.R.color.holo_blue_dark, 
+					android.R.color.holo_blue_light, 
+					android.R.color.holo_green_light, 
+					android.R.color.holo_green_light);
+			
+			// Setup Refresh Listener
+			this.swipeRefreshLayout.setOnRefreshListener(onRefreshListener);
+			
+			// Setup Click Listener
+			this.browser.setOnItemClickListener(onItemClickListener);
+			return view;
 	    }
-	}
-	public static class QueueFragment extends Fragment  {
-		private SubtleActivity parent;
-		private QueueAdapter adapter;
-		
-		public QueueFragment(SubtleActivity parent) {
-			super();
-			this.parent = parent;
-			this.adapter = this.parent.queueAdapter;
+	    
+	    public void backButtonPressed() {
+			if (this.currentDirectory != null) {
+				// Always grab from cache	
+				Integer parent;
+				try {
+					parent = this.currentDirectory.getParent();
+				} catch (RuntimeException e) {
+					// This 
+					Log.e(SUBTAG, e.getMessage());
+					return;
+				}
+				Database database = Database.getInstance(subtleActivity);
+				this.currentDirectory = database.getRow(parent);
+				List<ServerFileData> children = database.getDirectoryChildren(this.currentDirectory.getUid());
+				Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
+				
+				// Setup Adapter Data
+				this.browserAdapter.clear();
+				this.browserAdapter.addAll(children);
+				
+				// Refresh Browser
+				refreshBrowser();
+			}
+	    }
+	    
+	    public void swapCurrentList(List<ServerFileData> newList) {
+			browserAdapter.clear();
+			browserAdapter.addAll(newList);
+			refreshBrowser();
+	    }
+	    
+	    public void setCachedInCurrentList(int resourceID) {
+        	for (int i = 0; i < browserAdapter.getCount(); i++) {
+        		if (browserAdapter.getItem(i).getUid().equals(resourceID)) {
+        			browserAdapter.getItem(i).setCached(true);
+        		}
+        	}
+	    }
+	    
+	    public boolean isSwipeRefreshing() {
+	    	return this.swipeRefreshLayout.isRefreshing();
+	    }
+	    
+	    public ServerFileData getCurrentDirectory() {
+	    	return this.currentDirectory;
+	    }
+	    
+	    public void setCurrentDirectory(ServerFileData currentDirectory) {
+	    	this.currentDirectory = currentDirectory;
+	    }
+	    
+		public void refreshBrowser() {
+	    	if (this.browserAdapter != null) {	
+	    		this.browserAdapter.notifyDataSetChanged();
+	    	}
 		}
 		
-	    @Override
-	    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-	    	if (this.parent == null) {
-	    		throw new RuntimeException("Parent never set on fragment!");
-	    	}
-	        View rootView = inflater.inflate(R.layout.queue_fragment, container, false);
-	        final DynamicListView queueList = (DynamicListView) rootView.findViewById(R.id.queue);
-	        queueList.enableDragAndDrop();
-	        queueList.setOnItemLongClickListener(new OnItemLongClickListener() {
-    	        @Override
-    	        public boolean onItemLongClick(final AdapterView<?> viewAdapter, final View view,
-    	                                       final int position, final long id) {
-    	            queueList.startDragging(position);
-    	            return true;
-    	        }
-    	    });
-	        queueList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+		public void setBrowserLoading(boolean loading) {
+			if (loading) {
+				this.swipeRefreshLayout.setRefreshing(true);
+			} else {
+				this.swipeRefreshLayout.setRefreshing(false);
+			}
+		}  
+	}
+	
+	public static class QueueFragment extends Fragment  {
+		private QueueAdapter queueAdapter;
+		private DynamicListView queueListView;
+		private AdapterView.OnItemClickListener onItemClickListener;
+		private OnDismissCallback onDismissCallback;
+		
+		public QueueFragment(final SubtleActivity subtleActivity) {
+			super();
+			this.queueAdapter = new QueueAdapter(subtleActivity, R.layout.queue_row_view);
+			
+			/**
+			 * Setup Listeners
+			 */
+			this.onItemClickListener = new AdapterView.OnItemClickListener() {
 				@Override
 				public void onItemClick(AdapterView<?> parent, View view,
 						int position, long id) {
-					((SubtleActivity) QueueFragment.this.parent).selectTrack(position);
+					subtleActivity.selectTrack(position);
 				}
-			});
-	        queueList.enableSwipeToDismiss(new OnDismissCallback() {
+			};
+			this.onDismissCallback = new OnDismissCallback() {
 				@Override
 				public void onDismiss(final ViewGroup listView, final int[] reverseSortedPositions) {
 					for (int position : reverseSortedPositions) {
 						// If Current Track, Stop Playback
-						if (adapter.currentIndex() == position) {
+						if (queueAdapter.currentIndex() == position) {
 							SoundMachine.getInstance().stop();
 						}
 
 						// Delete Row in View
-						adapter.remove(position);
+						queueAdapter.remove(position);
 						
 						// Refresh Visible Rows
-						parent.invalidateIfCurrentIsVisible();
+						invalidateIfCurrentIsVisible();
     	            }
 				}
-	        });
-	        queueList.setAdapter(adapter);
-	        ((SubtleActivity) this.parent).setQueueListView(queueList);
+	        };
+		}
+		
+	    @Override
+	    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+	        View rootView = inflater.inflate(R.layout.queue_fragment, container, false);
+	        this.queueListView = (DynamicListView) rootView.findViewById(R.id.queue);
+	        this.queueListView.enableDragAndDrop();
+	        this.queueListView.setOnItemLongClickListener(new OnItemLongClickListener() {
+    	        @Override
+    	        public boolean onItemLongClick(final AdapterView<?> viewAdapter, final View view,
+    	                                       final int position, final long id) {
+    	        	queueListView.startDragging(position);
+    	            return true;
+    	        }
+    	    });
+	        this.queueListView.setOnItemClickListener(onItemClickListener);
+	        this.queueListView.enableSwipeToDismiss(onDismissCallback);
+	        this.queueListView.setAdapter(queueAdapter);
 	        return rootView;
+	    }
+	    
+	    public void enqueue(ServerFileData toQueue) {
+	    	this.queueAdapter.enqueue(toQueue);
+	    }
+	    
+	    public ServerFileData getCurrent() {
+	    	return this.queueAdapter.current();
+	    }
+	    
+	    public boolean isNext() {
+	    	return this.queueAdapter.isNext();
+	    }
+	    
+	    public void retreat() {
+	    	this.queueAdapter.retreat();
+	    	invalidateIfCurrentIsVisible();
+	    }
+	    
+	    public void advance() {
+	    	this.queueAdapter.advance();
+	    	invalidateIfCurrentIsVisible();
+	    }
+	    
+	    public void setCurrent(int index) {
+	    	this.queueAdapter.setCurrent(index);
+	    	invalidateIfCurrentIsVisible();
+	    }
+	    
+	    public void setItemCached(int resourceID) {
+	    	// Datastore
+        	for (int i = 0; i < queueAdapter.getCount(); i++) {
+        		if (queueAdapter.getItem(i).getUid().equals(resourceID)) {
+        			queueAdapter.getItem(i).setCached(true);
+        		}
+        	}
+	    	
+        	// View
+        	if (queueListView != null) {
+            	for (int i = 0; i < queueListView.getChildCount(); i++) {
+            		if (queueListView.getChildAt(i).getId() == resourceID) {
+            			ProgressBar progressBar = (ProgressBar) queueListView.getChildAt(i).findViewById(R.id.progress_bar);
+            			if (progressBar != null) {
+            				progressBar.setProgress(100);
+            			}
+            		}
+            	}
+        	}
+	    }
+	    
+	    public void updateDownloadProgresses(Set<Map.Entry<Integer, Integer>> progresses) {
+    		if (queueListView != null) {
+    			int start = queueListView.getFirstVisiblePosition();
+    			int end = queueListView.getLastVisiblePosition();
+      			for (Map.Entry<Integer, Integer> entry : progresses) {
+      				for (int i = start; i <= end; i++) {
+                		View childView = queueListView.getChildAt(i - start);
+                		if (childView != null) {
+                			QueueAdapter.QueueAdapterViewHolder viewHolder = (QueueAdapter.QueueAdapterViewHolder) childView.getTag();
+                			
+	                		if (viewHolder.id == entry.getKey()) {
+	                			ProgressBar progressBar = (ProgressBar) childView.findViewById(R.id.progress_bar);
+	                			if (progressBar != null) {
+	                				progressBar.setProgress(entry.getValue());
+	                			}
+	                		}
+                		}
+                	}
+      			}
+    		}
+	    }
+	    
+	    public void invalidateIfCurrentIsVisible() {
+	    	if (this.queueListView != null && this.queueAdapter != null) {	
+	    		int start = this.queueListView.getFirstVisiblePosition();
+	    		int end = this.queueListView.getLastVisiblePosition();
+	    		if ((this.queueAdapter.currentIndex() >= start && this.queueAdapter.currentIndex() <= end) || this.queueAdapter.getCount() == 0) {
+	    			this.queueListView.invalidateViews();
+	    		}
+	    	}
 	    }
 	}
 	public static class SettingsFragment extends Fragment {
-		private SubtleActivity parent;
+		private SubtleActivity subtleActivity;
 		private EditText username;
 		private EditText password;
 		private EditText serverUrl;
@@ -1107,12 +1005,12 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		
 		public SettingsFragment(SubtleActivity parent) {
 			super();
-			this.parent = parent;
+			this.subtleActivity = parent;
 		}
 		
 	    @Override
 	    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-	    	if (this.parent == null) {
+	    	if (this.subtleActivity == null) {
 	    		throw new RuntimeException("Parent never set on fragment!");
 	    	}
 	        View rootView = inflater.inflate(R.layout.settings_fragment, container, false);
@@ -1122,10 +1020,10 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	        this.clientName = (EditText)  rootView.findViewById(R.id.clientName);	  
 	        
 	        // Load Defaults
-	        this.username.setText(this.parent.preferencesGetString(SubtleActivity.USER_KEY, SubtleActivity.DEFAULT_USER));	        
-	        this.password.setText(this.parent.preferencesGetString(SubtleActivity.PASSWORD_KEY, SubtleActivity.DEFAULT_PASSWORD));
-	        this.serverUrl.setText(this.parent.preferencesGetString(SubtleActivity.BASE_URL_KEY, SubtleActivity.DEFAULT_BASE_URL));	  
-	        this.clientName.setText(this.parent.preferencesGetString(SubtleActivity.CLIENT_NAME_KEY, SubtleActivity.DEFAULT_CLIENT_NAME));
+	        this.username.setText(this.subtleActivity.preferencesGetString(SubtleActivity.USER_KEY, SubtleActivity.DEFAULT_USER));	        
+	        this.password.setText(this.subtleActivity.preferencesGetString(SubtleActivity.PASSWORD_KEY, SubtleActivity.DEFAULT_PASSWORD));
+	        this.serverUrl.setText(this.subtleActivity.preferencesGetString(SubtleActivity.BASE_URL_KEY, SubtleActivity.DEFAULT_BASE_URL));	  
+	        this.clientName.setText(this.subtleActivity.preferencesGetString(SubtleActivity.CLIENT_NAME_KEY, SubtleActivity.DEFAULT_CLIENT_NAME));
 	        
 	        // Setup Listeners
 			this.username.setOnFocusChangeListener(new View.OnFocusChangeListener() {
@@ -1133,7 +1031,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				public void onFocusChange(View v, boolean hasFocus) {
 					if (!hasFocus) {
 						String input = ((EditText) v).getText().toString();
-						parent.preferencesSetString(SubtleActivity.USER_KEY, input);
+						subtleActivity.preferencesSetString(SubtleActivity.USER_KEY, input);
 					}
 				}
 			});
@@ -1142,7 +1040,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				public void onFocusChange(View v, boolean hasFocus) {
 					if (!hasFocus) {
 						String input = ((EditText) v).getText().toString();
-						parent.preferencesSetString(SubtleActivity.PASSWORD_KEY, input);
+						subtleActivity.preferencesSetString(SubtleActivity.PASSWORD_KEY, input);
 					}
 				}
 			});;
@@ -1150,9 +1048,9 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				@Override
 				public void onFocusChange(View v, boolean hasFocus) {
 					if (!hasFocus) {
-						String previousUrl = parent.preferencesGetString(SubtleActivity.BASE_URL_KEY, SubtleActivity.DEFAULT_BASE_URL);
+						String previousUrl = subtleActivity.preferencesGetString(SubtleActivity.BASE_URL_KEY, SubtleActivity.DEFAULT_BASE_URL);
 						String newUrl = ((EditText) v).getText().toString();
-						parent.preferencesSetString(SubtleActivity.BASE_URL_KEY, newUrl);
+						subtleActivity.preferencesSetString(SubtleActivity.BASE_URL_KEY, newUrl);
 						// If we change the library, we need to invalidate the db
 						if (!previousUrl.equals(newUrl)) {
 							Database.invalidate();
@@ -1165,7 +1063,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				public void onFocusChange(View v, boolean hasFocus) {
 					if (!hasFocus) {
 						String input = ((EditText) v).getText().toString();
-						parent.preferencesSetString(SubtleActivity.CLIENT_NAME_KEY, input);
+						subtleActivity.preferencesSetString(SubtleActivity.CLIENT_NAME_KEY, input);
 					}
 				}
 			});

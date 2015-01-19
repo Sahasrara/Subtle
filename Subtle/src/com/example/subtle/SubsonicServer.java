@@ -150,9 +150,23 @@ public class SubsonicServer {
 		}
 	}
 	
+	private void sendRawListing(Context context, ServerFileData parent, byte[] response, DirectoryListing.ResponseType type) {
+		Handler handler = ((SubtleActivity) context).appRefreshHandler;
+		Message message = Message.obtain();
+		message.what = SubtleActivity.LISTING_RETRIEVED;
+		RawDirectoryListing directoryResponse = new RawDirectoryListing(parent, response, type);
+		message.obj = directoryResponse;
+		handler.sendMessage(message);
+	}
+	
 	private void getIndexes(final Context context, final ServerFileData fileData) {
 		// Build URL
-		String url = getAbsoluteURL("getIndexes.view");
+		String url;
+		try {
+			url = getAbsoluteURL("getIndexes.view");
+		} catch (Exception e) {
+			return;
+		}
 		
 		// Validate
 		if (url == null) {
@@ -175,20 +189,19 @@ public class SubsonicServer {
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] response) {
 				// Send Back Listing
-				Handler handler = ((SubtleActivity) context).appRefreshHandler;
-				Message message = Message.obtain();
-				message.what = SubtleActivity.MUSIC_FOLDER_LISTING_RETRIEVED;
-				DirectoryResponse directoryResponse = new DirectoryResponse(fileData, response);
-				message.obj = directoryResponse;
-				handler.sendMessage(message);
+				sendRawListing(context, fileData, response, DirectoryListing.ResponseType.MUSIC_FOLDER);
 			}
-			
 		});	
 	}
 	
 	private void getMusicFolders (final Context context) {
 		// Build URL
-		String url = getAbsoluteURL("getMusicFolders.view");
+		String url;
+		try {
+			url = getAbsoluteURL("getMusicFolders.view");
+		} catch (Exception e) {
+			return;
+		}
 		
 		// Validate
 		if (url == null) {
@@ -211,16 +224,11 @@ public class SubsonicServer {
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] response) {
 				// Send Back Listing
-				Handler handler = ((SubtleActivity) context).appRefreshHandler;
-				Message message = Message.obtain();
-				message.what = SubtleActivity.ROOT_LISTING_RETRIEVED;
 				ServerFileData parent = new ServerFileData();
 				parent.setUid(ServerFileData.ROOT_UID);
 				parent.setParent(ServerFileData.ROOT_UID);
 				parent.setResourceType(ServerFileData.ROOT_TYPE);
-				DirectoryResponse directoryResponse = new DirectoryResponse(parent, response);
-				message.obj = directoryResponse;
-				handler.sendMessage(message);
+				sendRawListing(context, parent, response, DirectoryListing.ResponseType.ROOT_LISTING);
 			}
 			
 		});
@@ -228,7 +236,12 @@ public class SubsonicServer {
 	
 	private void getMusicDirectory(final Context context, final ServerFileData fileData) {
 		// Build URL
-		String url = getAbsoluteURL("getMusicDirectory.view");
+		String url;
+		try {
+			url = getAbsoluteURL("getMusicDirectory.view");
+		} catch (Exception e) {
+			return;
+		}
 		
 		// Validate
 		if (url == null) {
@@ -252,21 +265,20 @@ public class SubsonicServer {
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] response) {
 				// Send Back Listing
-				Handler handler = ((SubtleActivity) context).appRefreshHandler;
-				Message message = Message.obtain();
-				message.what = SubtleActivity.DIRECTORY_LISTING_RETRIEVED;
-				DirectoryResponse directoryResponse = new DirectoryResponse(fileData, response);
-				message.obj = directoryResponse;
-				handler.sendMessage(message);
+				sendRawListing(context, fileData, response, DirectoryListing.ResponseType.DIRECTORY_LISTING);
 			}
-			
 		});
 	}
 	
 	
 	public void download(final Context context, final ServerFileData fileData) {
 		// Build URL
-		String url = getAbsoluteURL("download.view");
+		String url;
+		try {
+			url = getAbsoluteURL("download.view");
+		} catch (Exception e) {
+			return;
+		}
 		final int uid = fileData.getUid();
 		
 		// Validate URL
@@ -280,7 +292,7 @@ public class SubsonicServer {
 		if (fileExists(outputFile.getAbsolutePath())) {
 			deleteFile(outputFile.getAbsolutePath());
 		}
-		Log.v("SUBTAG", "Downlaoding to "+outputFile);
+		Log.v("SUBTAG", "Downloading to "+outputFile);
 		
 		// Build Parameters
 		RequestParams params = getBasicParameters();
