@@ -3,7 +3,6 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:theme="@android:style/Theme.NoTitleBar"
     tools:context="com.example.subtle.SubtleActivity" >
     
     <LinearLayout
@@ -11,8 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_weight=".15"
-        android:orientation="vertical"
-        android:paddingTop="?android:attr/actionBarSize" >
+        android:orientation="vertical" >
 
     </LinearLayout>
     

@@ -91,6 +91,8 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	/**
 	 * Subtle Resources
 	 */
+    public static SubtleActivity subtleActivity;
+    
 	public Handler appRefreshHandler;
 	private ActionBar actionBar;
 	
@@ -99,8 +101,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	private Button nextButton;
 	private SeekBar seekBar;
 	private boolean seeking;
-	
-	private static SubtleActivity subtleActivity;
 
 	private Database database;
 	private Tab browserTab;
@@ -110,7 +110,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	
 	/**
 	 * Lifecycle Methods
-	 */
+	 */	
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         /**
@@ -137,9 +137,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
             }
         });
         
-        /**
-         * Set Subtle Activity
-         */
+        // Make this available :<
         SubtleActivity.subtleActivity = this;
         
         /**
@@ -201,19 +199,19 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 			throw new RuntimeException("Could not create cache dir!");	
 		}
 		Log.v(SUBTAG, "Cache dir is "+SubtleActivity.CURRENT_CACHE_LOCATION);
-
+		
     	/**
     	 * Setup Main Activity View
     	 */
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_subtle);  
-		
+        
         /**
          * Setup Fragments
          */
-		this.fragmentViews[BROWSER_FRAGMENT] = new BrowserFragment(this);
-        this.fragmentViews[QUEUE_FRAGMENT] = new QueueFragment(this);
-        this.fragmentViews[SETTINGS_FRAGMENT] = new SettingsFragment(this);
+		this.fragmentViews[BROWSER_FRAGMENT] = new BrowserFragment();
+		this.fragmentViews[QUEUE_FRAGMENT] = new QueueFragment();
+		this.fragmentViews[SETTINGS_FRAGMENT] = new SettingsFragment();
         
         /**
          * Setup Tab Bar
@@ -222,22 +220,22 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         this.actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_TABS); 
         this.actionBar.setDisplayShowHomeEnabled(false);
         this.actionBar.setDisplayShowTitleEnabled(false);
-        //Browser Tab
-        this.browserTab = this.actionBar.newTab();
-        this.browserTab.setText("Browser");
-        this.browserTab.setTabListener(this);
-        this.actionBar.addTab(this.browserTab);
-        //Queue Tab
-        this.queueTab = this.actionBar.newTab();
-        this.queueTab.setText("Queue");
-        this.queueTab.setTabListener(this);
-        this.actionBar.addTab(this.queueTab);
         //Settings Tab
         this.settingsTab = this.actionBar.newTab();
         this.settingsTab.setText("Settings");
         this.settingsTab.setTabListener(this);
         this.actionBar.addTab(this.settingsTab);
-        
+        //Queue Tab
+        this.queueTab = this.actionBar.newTab();
+        this.queueTab.setText("Queue");
+        this.queueTab.setTabListener(this);
+        this.actionBar.addTab(this.queueTab);
+        //Browser Tab
+        this.browserTab = this.actionBar.newTab();
+        this.browserTab.setText("Browser");
+        this.browserTab.setTabListener(this);
+        this.actionBar.addTab(this.browserTab);
+
         /**
          * Setup Controller
          */
@@ -322,7 +320,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	                	break;
 	                case LISTING_RETRIEVED:
 	                	// Grab XML byte[]
-	                	((RawDirectoryListing) inputMessage.obj).parseListing(SubtleActivity.subtleActivity);
+	                	((RawDirectoryListing) inputMessage.obj).parseListing(SubtleActivity.this);
 	                	
 						break;
 	                case PARSED_LISTING:
@@ -365,6 +363,10 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         this.database = Database.getInstance(this);
         // Start UI Updater
         UIRefreshThread.start(this.appRefreshHandler, PROGRESS_REFRESH_RATE);
+        
+        // Show Browser
+        this.actionBar.selectTab(this.queueTab);
+        this.actionBar.selectTab(this.browserTab);
     }
 
     
@@ -535,7 +537,10 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
      */
     public void hideSoftKeyboard() {
         InputMethodManager inputMethodManager = (InputMethodManager)  this.getSystemService(Activity.INPUT_METHOD_SERVICE);
-        inputMethodManager.hideSoftInputFromWindow(this.getCurrentFocus().getWindowToken(), 0);
+        View currentFocus = this.getCurrentFocus();
+        if (currentFocus != null) {
+        	inputMethodManager.hideSoftInputFromWindow(currentFocus.getWindowToken(), 0);
+        }
     }
 
     /**
@@ -614,7 +619,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	 * Queue Specific
 	 */
     public static final int QUEUE_SELECTED_COLOR = android.R.color.background_light;
-    public static final int QUEUE_DESELECTED_COLOR = android.R.color.background_dark;
+    public static final int QUEUE_DESELECTED_COLOR = android.R.drawable.list_selector_background;
 	private void enqueueSong(ServerFileData song) {
 		if (song.getResourceType() != ServerFileData.FILE_TYPE) {
 			throw new RuntimeException("Enqueued a non-file type resourse!");
@@ -644,7 +649,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	 * Browser Specific
 	 */
 	public static final int BROWSER_ROW_CACHED = android.R.color.holo_blue_dark;
-	public static final int BROWSER_ROW_DECACHED = android.R.color.background_dark;
+	public static final int BROWSER_ROW_DECACHED = android.R.drawable.list_selector_background;
 	@Override
 	public void onBackPressed() {
 		if (this.fragmentViews[BROWSER_FRAGMENT] != null) {
@@ -655,9 +660,10 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     /**
      * Tab Listener Functions
      */
-	private static final int BROWSER_FRAGMENT = 0;
+	private static final int SETTINGS_FRAGMENT = 0;
 	private static final int QUEUE_FRAGMENT = 1;
-	private static final int SETTINGS_FRAGMENT = 2;
+	private static final int BROWSER_FRAGMENT = 2;
+
 	private Fragment[] fragmentViews = new Fragment[3];
 	private int currentFragment;
 	@Override
@@ -686,15 +692,12 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		private ListView browser;
 		private SwipeRefreshLayout swipeRefreshLayout;
 		private BrowserAdapter browserAdapter;
-		private SubtleActivity subtleActivity;
 		private ServerFileData currentDirectory;
 		private OnItemClickListener onItemClickListener;
 		private SwipeRefreshLayout.OnRefreshListener onRefreshListener;
 		
-		public BrowserFragment(final SubtleActivity subtleActivity) {
-			this.subtleActivity = subtleActivity;
-	        this.browserAdapter = new BrowserAdapter(subtleActivity, R.layout.browser_row_view);
-	        
+		public BrowserFragment() {
+			super();
 	        /**
 	         * Create Listeners
 	         */
@@ -702,10 +705,10 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				@Override
 				public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
 					ServerFileData selectedItem = browserAdapter.getItem(position);
-					SubsonicServer server = SubsonicServer.getInstance(subtleActivity);
+					SubsonicServer server = SubsonicServer.getInstance((SubtleActivity) getActivity());
 					if (selectedItem.isDirectory()) { // Directory
 						// Check Cache (and unlock if cached)
-						List<ServerFileData> children = Database.getInstance(subtleActivity).getDirectoryChildren(selectedItem.getUid());
+						List<ServerFileData> children = Database.getInstance((SubtleActivity) getActivity()).getDirectoryChildren(selectedItem.getUid());
 						Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
 						if (children != null && children.size() > 0) {
 							// Set Current Directory
@@ -718,11 +721,11 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 							// Refresh Browser
 							refreshBrowser();
 						} else {
-							server.getDirectoryListing(subtleActivity, selectedItem);
+							server.getDirectoryListing((SubtleActivity) getActivity(), selectedItem);
 						}
 					} else { // File
 						// Queue
-						subtleActivity.enqueueSong(browserAdapter.getItem(position));
+						((SubtleActivity) getActivity()).enqueueSong(browserAdapter.getItem(position));
 					}
 				}
 			};
@@ -733,63 +736,78 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		        	if (currentDirectory == null) {
 		                ServerFileData root = new ServerFileData();
 		                root.setResourceType(ServerFileData.ROOT_TYPE);
-		                SubsonicServer.getInstance(subtleActivity).getDirectoryListing(subtleActivity, root);
+		                SubsonicServer.getInstance((SubtleActivity) getActivity()).getDirectoryListing((SubtleActivity) getActivity(), root);
 		        	} else {
-			        	SubsonicServer.getInstance(subtleActivity).getDirectoryListing(subtleActivity, currentDirectory);
+			        	SubsonicServer.getInstance((SubtleActivity) getActivity()).getDirectoryListing((SubtleActivity) getActivity(), currentDirectory);
 		        	}
 		        }
 		    };
-	        
-	        /**
-	         * Download Root Folder
-	         */
-	        SubsonicServer server = SubsonicServer.getInstance(subtleActivity);
-	        Database database = Database.getInstance(subtleActivity);
-	        ServerFileData root = new ServerFileData();
-	        root.setResourceType(ServerFileData.ROOT_TYPE);
-	        root.setParent(ServerFileData.ROOT_UID);
-	        
-			// Check Cache (and unlock if cached)
-			List<ServerFileData> children = database.getDirectoryChildren(ServerFileData.ROOT_UID);
-			Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
-			if (children != null && children.size() > 0) {
-				// Set Current Directory
-				setCurrentDirectory(root);
-				
-				// Setup Adapter Data
-				swapCurrentList(children);
-			} else {
-		        server.getDirectoryListing(subtleActivity, root);
-			}
 		}
 		
 	    @Override
 	    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 	    	// Create View
-	        View view = inflater.inflate(R.layout.browser_fragment, container, false);
-
+	        return inflater.inflate(R.layout.browser_fragment, container, false);
+	    }
+	    
+	    @Override
+	    public void onActivityCreated(Bundle savedInstanceState) {
+	        super.onActivityCreated(savedInstanceState);
+	        /**
+	         * Setup Adapter
+	         */
+	        if (this.browserAdapter == null) {
+		        /**
+		         * Setup First Listing
+		         */
+	        	this.browserAdapter = new BrowserAdapter((SubtleActivity) getActivity(), R.layout.browser_row_view);
+		        SubsonicServer server = SubsonicServer.getInstance((SubtleActivity) getActivity());
+		        Database database = Database.getInstance((SubtleActivity) getActivity());
+		        ServerFileData rootDir = new ServerFileData();
+		        rootDir.setResourceType(ServerFileData.ROOT_TYPE);
+		        rootDir.setParent(ServerFileData.ROOT_UID);
+		        
+				// Check Cache (and unlock if cached)
+				List<ServerFileData> children = database.getDirectoryChildren(rootDir.getParent());
+				if (children != null && children.size() > 0) {
+					// Sort
+					Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
+					
+					// Set Current Directory
+					setCurrentDirectory(rootDir);
+					
+					// Setup Adapter Data
+					swapCurrentList(children);
+				} else {
+			        server.getDirectoryListing((SubtleActivity) getActivity(), rootDir);
+				}
+	        }
+	        
+			/**
+			 * Setup Browser View
+			 */
 			// Get ListView
-			this.browser = (ListView) view.findViewById(R.id.browser);
-			
-			// Get Swipe Refresh layout
-			this.swipeRefreshLayout = (SwipeRefreshLayout) view.findViewById(R.id.swipe_container);
+			this.browser = (ListView) getView().findViewById(R.id.browser);
 
+			// Setup Click Listener
+			this.browser.setOnItemClickListener(onItemClickListener);
+			
 			// Setup Adapter
 			this.browser.setAdapter(this.browserAdapter);
 			
+			/**
+			 * Setup Swipe Refresh Layout
+			 */
+			// Get Swipe Refresh layout
+			this.swipeRefreshLayout = (SwipeRefreshLayout) getView().findViewById(R.id.swipe_container);
 			// Setup Refresh Colors
 			this.swipeRefreshLayout.setColorSchemeResources(
 					android.R.color.holo_blue_dark, 
 					android.R.color.holo_blue_light, 
 					android.R.color.holo_green_light, 
 					android.R.color.holo_green_light);
-			
 			// Setup Refresh Listener
 			this.swipeRefreshLayout.setOnRefreshListener(onRefreshListener);
-			
-			// Setup Click Listener
-			this.browser.setOnItemClickListener(onItemClickListener);
-			return view;
 	    }
 	    
 	    public void backButtonPressed() {
@@ -803,7 +821,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 					Log.e(SUBTAG, e.getMessage());
 					return;
 				}
-				Database database = Database.getInstance(subtleActivity);
+				Database database = Database.getInstance((SubtleActivity) getActivity());
 				this.currentDirectory = database.getRow(parent);
 				List<ServerFileData> children = database.getDirectoryChildren(this.currentDirectory.getUid());
 				Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
@@ -864,10 +882,8 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		private AdapterView.OnItemClickListener onItemClickListener;
 		private OnDismissCallback onDismissCallback;
 		
-		public QueueFragment(final SubtleActivity subtleActivity) {
+		public QueueFragment() {
 			super();
-			this.queueAdapter = new QueueAdapter(subtleActivity, R.layout.queue_row_view);
-			
 			/**
 			 * Setup Listeners
 			 */
@@ -875,7 +891,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				@Override
 				public void onItemClick(AdapterView<?> parent, View view,
 						int position, long id) {
-					subtleActivity.selectTrack(position);
+					((SubtleActivity) getActivity()).selectTrack(position);
 				}
 			};
 			this.onDismissCallback = new OnDismissCallback() {
@@ -899,8 +915,18 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		
 	    @Override
 	    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-	        View rootView = inflater.inflate(R.layout.queue_fragment, container, false);
-	        this.queueListView = (DynamicListView) rootView.findViewById(R.id.queue);
+	        return inflater.inflate(R.layout.queue_fragment, container, false);
+	    }
+	    
+	    @Override
+	    public void onActivityCreated(Bundle savedInstanceState) {
+	        super.onActivityCreated(savedInstanceState);
+	        
+	        if (this.queueAdapter == null) {
+	        	this.queueAdapter = new QueueAdapter((SubtleActivity) getActivity(), R.layout.queue_row_view);
+	        }
+	        
+	        this.queueListView = (DynamicListView) getView().findViewById(R.id.queue);
 	        this.queueListView.enableDragAndDrop();
 	        this.queueListView.setOnItemLongClickListener(new OnItemLongClickListener() {
     	        @Override
@@ -913,7 +939,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	        this.queueListView.setOnItemClickListener(onItemClickListener);
 	        this.queueListView.enableSwipeToDismiss(onDismissCallback);
 	        this.queueListView.setAdapter(queueAdapter);
-	        return rootView;
 	    }
 	    
 	    public void enqueue(ServerFileData toQueue) {
@@ -996,23 +1021,19 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	    	}
 	    }
 	}
+	
 	public static class SettingsFragment extends Fragment {
-		private SubtleActivity subtleActivity;
 		private EditText username;
 		private EditText password;
 		private EditText serverUrl;
 		private EditText clientName;
 		
-		public SettingsFragment(SubtleActivity parent) {
+		public SettingsFragment() {
 			super();
-			this.subtleActivity = parent;
 		}
 		
 	    @Override
 	    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-	    	if (this.subtleActivity == null) {
-	    		throw new RuntimeException("Parent never set on fragment!");
-	    	}
 	        View rootView = inflater.inflate(R.layout.settings_fragment, container, false);
 	        this.username = (EditText)  rootView.findViewById(R.id.username);	        
 	        this.password = (EditText)  rootView.findViewById(R.id.password);	  
@@ -1020,10 +1041,10 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	        this.clientName = (EditText)  rootView.findViewById(R.id.clientName);	  
 	        
 	        // Load Defaults
-	        this.username.setText(this.subtleActivity.preferencesGetString(SubtleActivity.USER_KEY, SubtleActivity.DEFAULT_USER));	        
-	        this.password.setText(this.subtleActivity.preferencesGetString(SubtleActivity.PASSWORD_KEY, SubtleActivity.DEFAULT_PASSWORD));
-	        this.serverUrl.setText(this.subtleActivity.preferencesGetString(SubtleActivity.BASE_URL_KEY, SubtleActivity.DEFAULT_BASE_URL));	  
-	        this.clientName.setText(this.subtleActivity.preferencesGetString(SubtleActivity.CLIENT_NAME_KEY, SubtleActivity.DEFAULT_CLIENT_NAME));
+	        this.username.setText(((SubtleActivity) getActivity()).preferencesGetString(SubtleActivity.USER_KEY, SubtleActivity.DEFAULT_USER));	        
+	        this.password.setText(((SubtleActivity) getActivity()).preferencesGetString(SubtleActivity.PASSWORD_KEY, SubtleActivity.DEFAULT_PASSWORD));
+	        this.serverUrl.setText(((SubtleActivity) getActivity()).preferencesGetString(SubtleActivity.BASE_URL_KEY, SubtleActivity.DEFAULT_BASE_URL));	  
+	        this.clientName.setText(((SubtleActivity) getActivity()).preferencesGetString(SubtleActivity.CLIENT_NAME_KEY, SubtleActivity.DEFAULT_CLIENT_NAME));
 	        
 	        // Setup Listeners
 			this.username.setOnFocusChangeListener(new View.OnFocusChangeListener() {
@@ -1031,7 +1052,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				public void onFocusChange(View v, boolean hasFocus) {
 					if (!hasFocus) {
 						String input = ((EditText) v).getText().toString();
-						subtleActivity.preferencesSetString(SubtleActivity.USER_KEY, input);
+						((SubtleActivity) getActivity()).preferencesSetString(SubtleActivity.USER_KEY, input);
 					}
 				}
 			});
@@ -1040,7 +1061,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				public void onFocusChange(View v, boolean hasFocus) {
 					if (!hasFocus) {
 						String input = ((EditText) v).getText().toString();
-						subtleActivity.preferencesSetString(SubtleActivity.PASSWORD_KEY, input);
+						((SubtleActivity) getActivity()).preferencesSetString(SubtleActivity.PASSWORD_KEY, input);
 					}
 				}
 			});;
@@ -1048,9 +1069,9 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				@Override
 				public void onFocusChange(View v, boolean hasFocus) {
 					if (!hasFocus) {
-						String previousUrl = subtleActivity.preferencesGetString(SubtleActivity.BASE_URL_KEY, SubtleActivity.DEFAULT_BASE_URL);
+						String previousUrl = ((SubtleActivity) getActivity()).preferencesGetString(SubtleActivity.BASE_URL_KEY, SubtleActivity.DEFAULT_BASE_URL);
 						String newUrl = ((EditText) v).getText().toString();
-						subtleActivity.preferencesSetString(SubtleActivity.BASE_URL_KEY, newUrl);
+						((SubtleActivity) getActivity()).preferencesSetString(SubtleActivity.BASE_URL_KEY, newUrl);
 						// If we change the library, we need to invalidate the db
 						if (!previousUrl.equals(newUrl)) {
 							Database.invalidate();
@@ -1063,7 +1084,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				public void onFocusChange(View v, boolean hasFocus) {
 					if (!hasFocus) {
 						String input = ((EditText) v).getText().toString();
-						subtleActivity.preferencesSetString(SubtleActivity.CLIENT_NAME_KEY, input);
+						((SubtleActivity) getActivity()).preferencesSetString(SubtleActivity.CLIENT_NAME_KEY, input);
 					}
 				}
 			});

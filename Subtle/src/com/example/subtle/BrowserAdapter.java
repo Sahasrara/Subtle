@@ -11,10 +11,15 @@ import android.widget.TextView;
 public class BrowserAdapter extends ArrayAdapter<ServerFileData> {
 	private Context context;
 	private int rowResourceId;
-	public BrowserAdapter(Context context, int rowResourceId) {
+	public BrowserAdapter(SubtleActivity context, int rowResourceId) {
 		super(context, rowResourceId);
 		this.context = context;
 		this.rowResourceId = rowResourceId;
+	}
+	
+	@Override
+	public boolean areAllItemsEnabled () {
+		return true;
 	}
 
 	@Override

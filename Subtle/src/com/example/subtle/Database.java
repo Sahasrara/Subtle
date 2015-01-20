@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import android.content.ContentValues;
-import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
@@ -42,13 +41,13 @@ public class Database extends SQLiteOpenHelper {
 	 * Singleton
 	 */
 	private static Database instance = null;
-	public synchronized static Database getInstance(Context context) {
+	public synchronized static Database getInstance(SubtleActivity context) {
 		if(instance == null) {
 			instance = new Database(context);
 		}
 		return instance;
 	}
-	private Database(Context context) {
+	private Database(SubtleActivity context) {
 		super(context, DATABASE_NAME, null, DATABASE_VERSION);
 	}
 

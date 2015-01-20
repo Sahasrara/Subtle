@@ -17,9 +17,9 @@ public class QueueAdapter extends ArrayAdapter<ServerFileData> implements Swappa
 	private int rowResourceId;
 	private ServerFileData current;
 
-	public QueueAdapter(Context context, int rowResourceId) {
+	public QueueAdapter(SubtleActivity context, int rowResourceId) {
 		super(context, rowResourceId);
-		this.context = (SubtleActivity) context;
+		this.context = context;
 		this.rowResourceId = rowResourceId;
 		this.current = null;
 	}
@@ -90,6 +90,11 @@ public class QueueAdapter extends ArrayAdapter<ServerFileData> implements Swappa
 		if (fileData == this.current) {
 			this.current = null;
 		}
+	}
+	
+	@Override
+	public boolean areAllItemsEnabled () {
+		return true;
 	}
 	
 	@Override
