@@ -91,8 +91,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	/**
 	 * Subtle Resources
 	 */
-    public static SubtleActivity subtleActivity;
-    
 	public Handler appRefreshHandler;
 	private ActionBar actionBar;
 	
@@ -102,7 +100,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	private SeekBar seekBar;
 	private boolean seeking;
 
-	private Database database;
 	private Tab browserTab;
 	private Tab queueTab;
 	private Tab settingsTab;
@@ -136,10 +133,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
             	}
             }
         });
-        
-        // Make this available :<
-        SubtleActivity.subtleActivity = this;
-        
+
         /**
          * Load Default Preferences
          */
@@ -313,9 +307,9 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	                	((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).setCachedInCurrentList(resourceID);
 	                	
 	                	// Update Database
-	                	ServerFileData row = database.getRow(resourceID);
+	                	ServerFileData row = Database.getInstance(null).getRow(resourceID);
 	                	row.setCached(true);
-	                	database.addMusic(row);
+	                	Database.getInstance(null).addMusic(row);
 	                	
 	                	break;
 	                case LISTING_RETRIEVED:
@@ -327,11 +321,11 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	                	ParsedDirectoryListing newList = (ParsedDirectoryListing) inputMessage.obj;
 	                	
 						// Clear out Old Data
-						database.deleteChildren(newList.getParent().getUid());
+	                	Database.getInstance(null).deleteChildren(newList.getParent().getUid());
 						// Sort by Name
 						Collections.sort(newList.getListing(), SERVER_FILE_DATA_TITLE_COMPARATOR);
 	                	// Update Database
-						database.addMusic(newList.getListing().toArray(new ServerFileData[newList.getListing().size()]));
+						Database.getInstance(null).addMusic(newList.getListing().toArray(new ServerFileData[newList.getListing().size()]));
 	                	// Update UI Element
 						((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).swapCurrentList(newList.getListing());
 						// Set Current Directory
@@ -353,14 +347,20 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         this.systemIntentReceiver = new SystemIntentReceiver();
         IntentFilter filter = new IntentFilter(Intent.ACTION_HEADSET_PLUG);
         registerReceiver(this.systemIntentReceiver, filter);
+ 
+        
+        /**
+         * Initialize Server and Database
+         */
+        Database.getInstance(this);
+        SubsonicServer.getInstance(this);
         
         // Setup Sound Machine with Handler for Callbacks
         SoundMachine.getInstance().setHandler(this.appRefreshHandler);
         
         // Seeking
         this.seeking = false;
-        // Setup Database
-        this.database = Database.getInstance(this);
+        
         // Start UI Updater
         UIRefreshThread.start(this.appRefreshHandler, PROGRESS_REFRESH_RATE);
         
@@ -626,11 +626,11 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		}
 		
 		// Check if Cached
-		boolean cached = this.database.getRow(song.getUid()).getCached();
+		boolean cached = Database.getInstance(null).getRow(song.getUid()).getCached();
 		
 		// Download if Needed
-		if (!cached && !SubsonicServer.getInstance(this).isDownloading(song)) {
-			SubsonicServer.getInstance(this).download(this, song);
+		if (!cached && !SubsonicServer.getInstance(null).isDownloading(song)) {
+			SubsonicServer.getInstance(null).download(this, song);
 		}	
 		
 		// Add to Queue
@@ -698,55 +698,10 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		
 		public BrowserFragment() {
 			super();
-	        /**
-	         * Create Listeners
-	         */
-	        this.onItemClickListener = new OnItemClickListener(){
-				@Override
-				public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-					ServerFileData selectedItem = browserAdapter.getItem(position);
-					SubsonicServer server = SubsonicServer.getInstance((SubtleActivity) getActivity());
-					if (selectedItem.isDirectory()) { // Directory
-						// Check Cache (and unlock if cached)
-						List<ServerFileData> children = Database.getInstance((SubtleActivity) getActivity()).getDirectoryChildren(selectedItem.getUid());
-						Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
-						if (children != null && children.size() > 0) {
-							// Set Current Directory
-							currentDirectory = selectedItem;
-							
-							// Setup Adapter Data
-							browserAdapter.clear();
-							browserAdapter.addAll(children);
-							
-							// Refresh Browser
-							refreshBrowser();
-						} else {
-							server.getDirectoryListing((SubtleActivity) getActivity(), selectedItem);
-						}
-					} else { // File
-						// Queue
-						((SubtleActivity) getActivity()).enqueueSong(browserAdapter.getItem(position));
-					}
-				}
-			};
-			this.onRefreshListener = new SwipeRefreshLayout.OnRefreshListener() {
-		        @Override
-		        public void onRefresh() {
-		        	swipeRefreshLayout.setRefreshing(true);
-		        	if (currentDirectory == null) {
-		                ServerFileData root = new ServerFileData();
-		                root.setResourceType(ServerFileData.ROOT_TYPE);
-		                SubsonicServer.getInstance((SubtleActivity) getActivity()).getDirectoryListing((SubtleActivity) getActivity(), root);
-		        	} else {
-			        	SubsonicServer.getInstance((SubtleActivity) getActivity()).getDirectoryListing((SubtleActivity) getActivity(), currentDirectory);
-		        	}
-		        }
-		    };
 		}
 		
 	    @Override
 	    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-	    	// Create View
 	        return inflater.inflate(R.layout.browser_fragment, container, false);
 	    }
 	    
@@ -761,7 +716,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		         * Setup First Listing
 		         */
 	        	this.browserAdapter = new BrowserAdapter((SubtleActivity) getActivity(), R.layout.browser_row_view);
-		        SubsonicServer server = SubsonicServer.getInstance((SubtleActivity) getActivity());
+		        SubsonicServer server = SubsonicServer.getInstance(null);
 		        Database database = Database.getInstance((SubtleActivity) getActivity());
 		        ServerFileData rootDir = new ServerFileData();
 		        rootDir.setResourceType(ServerFileData.ROOT_TYPE);
@@ -779,9 +734,58 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 					// Setup Adapter Data
 					swapCurrentList(children);
 				} else {
-			        server.getDirectoryListing((SubtleActivity) getActivity(), rootDir);
+			        server.getDirectoryListing(rootDir);
 				}
 	        }
+	        
+	        /**
+	         * Create Listeners
+	         */
+	    	if (this.onItemClickListener == null) {
+		        this.onItemClickListener = new OnItemClickListener(){
+					@Override
+					public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+						ServerFileData selectedItem = browserAdapter.getItem(position);
+						SubsonicServer server = SubsonicServer.getInstance(null);
+						if (selectedItem.isDirectory()) { // Directory
+							// Check Cache (and unlock if cached)
+							List<ServerFileData> children = Database.getInstance((SubtleActivity) getActivity()).getDirectoryChildren(selectedItem.getUid());
+							Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
+							if (children != null && children.size() > 0) {
+								// Set Current Directory
+								currentDirectory = selectedItem;
+								
+								// Setup Adapter Data
+								browserAdapter.clear();
+								browserAdapter.addAll(children);
+								
+								// Refresh Browser
+								refreshBrowser();
+							} else {
+								server.getDirectoryListing(selectedItem);
+							}
+						} else { // File
+							// Queue
+							((SubtleActivity) getActivity()).enqueueSong(browserAdapter.getItem(position));
+						}
+					}
+				};
+	    	}
+	    	if (this.onRefreshListener == null) {
+				this.onRefreshListener = new SwipeRefreshLayout.OnRefreshListener() {
+			        @Override
+			        public void onRefresh() {
+			        	swipeRefreshLayout.setRefreshing(true);
+			        	if (currentDirectory == null) {
+			                ServerFileData root = new ServerFileData();
+			                root.setResourceType(ServerFileData.ROOT_TYPE);
+			                SubsonicServer.getInstance(null).getDirectoryListing(root);
+			        	} else {
+				        	SubsonicServer.getInstance(null).getDirectoryListing(currentDirectory);
+			        	}
+			        }
+			    };
+	    	}
 	        
 			/**
 			 * Setup Browser View
@@ -821,7 +825,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 					Log.e(SUBTAG, e.getMessage());
 					return;
 				}
-				Database database = Database.getInstance((SubtleActivity) getActivity());
+				Database database = Database.getInstance(null);
 				this.currentDirectory = database.getRow(parent);
 				List<ServerFileData> children = database.getDirectoryChildren(this.currentDirectory.getUid());
 				Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
@@ -884,33 +888,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		
 		public QueueFragment() {
 			super();
-			/**
-			 * Setup Listeners
-			 */
-			this.onItemClickListener = new AdapterView.OnItemClickListener() {
-				@Override
-				public void onItemClick(AdapterView<?> parent, View view,
-						int position, long id) {
-					((SubtleActivity) getActivity()).selectTrack(position);
-				}
-			};
-			this.onDismissCallback = new OnDismissCallback() {
-				@Override
-				public void onDismiss(final ViewGroup listView, final int[] reverseSortedPositions) {
-					for (int position : reverseSortedPositions) {
-						// If Current Track, Stop Playback
-						if (queueAdapter.currentIndex() == position) {
-							SoundMachine.getInstance().stop();
-						}
-
-						// Delete Row in View
-						queueAdapter.remove(position);
-						
-						// Refresh Visible Rows
-						invalidateIfCurrentIsVisible();
-    	            }
-				}
-	        };
 		}
 		
 	    @Override
@@ -921,6 +898,37 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	    @Override
 	    public void onActivityCreated(Bundle savedInstanceState) {
 	        super.onActivityCreated(savedInstanceState);
+			/**
+			 * Setup Listeners
+			 */
+	        if (this.onItemClickListener == null) {
+				this.onItemClickListener = new AdapterView.OnItemClickListener() {
+					@Override
+					public void onItemClick(AdapterView<?> parent, View view,
+							int position, long id) {
+						((SubtleActivity) getActivity()).selectTrack(position);
+					}
+				};
+	        }
+	        if (this.onDismissCallback == null) {
+				this.onDismissCallback = new OnDismissCallback() {
+					@Override
+					public void onDismiss(final ViewGroup listView, final int[] reverseSortedPositions) {
+						for (int position : reverseSortedPositions) {
+							// If Current Track, Stop Playback
+							if (queueAdapter.currentIndex() == position) {
+								SoundMachine.getInstance().stop();
+							}
+	
+							// Delete Row in View
+							queueAdapter.remove(position);
+							
+							// Refresh Visible Rows
+							invalidateIfCurrentIsVisible();
+	    	            }
+					}
+		        };
+	        }
 	        
 	        if (this.queueAdapter == null) {
 	        	this.queueAdapter = new QueueAdapter((SubtleActivity) getActivity(), R.layout.queue_row_view);

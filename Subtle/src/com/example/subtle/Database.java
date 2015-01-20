@@ -43,6 +43,9 @@ public class Database extends SQLiteOpenHelper {
 	private static Database instance = null;
 	public synchronized static Database getInstance(SubtleActivity context) {
 		if(instance == null) {
+			if (context == null) {
+				throw new RuntimeException("Database failed to initialize!");
+			}
 			instance = new Database(context);
 		}
 		return instance;

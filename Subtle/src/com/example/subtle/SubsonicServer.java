@@ -51,6 +51,9 @@ public class SubsonicServer {
 	private static SubsonicServer instance = null;
 	public synchronized static SubsonicServer getInstance(SubtleActivity context) {
 		if (instance == null) {
+			if (context == null) {
+				throw new RuntimeException("SubsonicServer failed to initialize!");
+			}
 			instance = new SubsonicServer(context);
 		}
 		return instance;
@@ -113,9 +116,9 @@ public class SubsonicServer {
 		   return null;
 		}		
 	}
-	private void showDialog(Context context, String message, Throwable e) {
+	private void showDialog(String message, Throwable e) {
 		// Build A Failure Dialog
-		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(context);
+		AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this.parentContext);
 		alertDialogBuilder
 			.setTitle(message)
 			.setMessage(e.getMessage())
@@ -128,7 +131,7 @@ public class SubsonicServer {
 
 		// Add Dialog to Queue
 		Message dialogMessage = Message.obtain();
-		Handler handler = ((SubtleActivity) context).appRefreshHandler;
+		Handler handler = this.parentContext.appRefreshHandler;
 		dialogMessage.what = SubtleActivity.DIALOG_MESSAGE;
 		dialogMessage.obj = alertDialogBuilder.create();
 		handler.sendMessage(dialogMessage);
@@ -137,14 +140,14 @@ public class SubsonicServer {
 	/**
 	 * Public Interface
 	 */
-	public void getDirectoryListing(final Context context, final ServerFileData fileData) {
+	public void getDirectoryListing(final ServerFileData fileData) {
 		int resourceType = fileData.getResourceType().intValue();
 		if (resourceType == ServerFileData.ROOT_TYPE) {
-			getMusicFolders(context);
+			getMusicFolders();
 		} else if (resourceType == ServerFileData.DIRECTORY_TYPE) {
-			getMusicDirectory(context, fileData);
+			getMusicDirectory(fileData);
 		} else if (resourceType == ServerFileData.MUSIC_FOLDER_TYPE) {
-			getIndexes(context, fileData);
+			getIndexes(fileData);
 		} else {
 			throw new RuntimeException("Invalid resource type encountered during attempt to retrieve directory listing!");
 		}
@@ -159,7 +162,7 @@ public class SubsonicServer {
 		handler.sendMessage(message);
 	}
 	
-	private void getIndexes(final Context context, final ServerFileData fileData) {
+	private void getIndexes(final ServerFileData fileData) {
 		// Build URL
 		String url;
 		try {
@@ -170,7 +173,7 @@ public class SubsonicServer {
 		
 		// Validate
 		if (url == null) {
-			showDialog(context, "Bad URL!", new Throwable("Please check the server url for issues."));
+			showDialog("Bad URL!", new Throwable("Please check the server url for issues."));
 		}
 		
 		// Build Parameters
@@ -183,18 +186,18 @@ public class SubsonicServer {
 			@Override
 			public void onFailure(int statusCode, Header[] headers, byte[] errorResponse, Throwable e) {
 				// Show Dialog Box
-				showDialog(context, "Failed to retrieve music folder listing!", e);
+				showDialog("Failed to retrieve music folder listing!", e);
 			}
 
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] response) {
 				// Send Back Listing
-				sendRawListing(context, fileData, response, DirectoryListing.ResponseType.MUSIC_FOLDER);
+				sendRawListing(parentContext, fileData, response, DirectoryListing.ResponseType.MUSIC_FOLDER);
 			}
 		});	
 	}
 	
-	private void getMusicFolders (final Context context) {
+	private void getMusicFolders () {
 		// Build URL
 		String url;
 		try {
@@ -205,7 +208,7 @@ public class SubsonicServer {
 		
 		// Validate
 		if (url == null) {
-			showDialog(context, "Bad URL!", new Throwable("Please check the server url for issues."));
+			showDialog("Bad URL!", new Throwable("Please check the server url for issues."));
 			return;
 		}
 		
@@ -218,7 +221,7 @@ public class SubsonicServer {
 			@Override
 			public void onFailure(int statusCode, Header[] headers, byte[] errorResponse, Throwable e) {
 				// Show Dialog Box
-				showDialog(context, "Failed to retrieve directory listing!", e);
+				showDialog("Failed to retrieve directory listing!", e);
 			}
 			
 			@Override
@@ -228,13 +231,13 @@ public class SubsonicServer {
 				parent.setUid(ServerFileData.ROOT_UID);
 				parent.setParent(ServerFileData.ROOT_UID);
 				parent.setResourceType(ServerFileData.ROOT_TYPE);
-				sendRawListing(context, parent, response, DirectoryListing.ResponseType.ROOT_LISTING);
+				sendRawListing(parentContext, parent, response, DirectoryListing.ResponseType.ROOT_LISTING);
 			}
 			
 		});
 	}
 	
-	private void getMusicDirectory(final Context context, final ServerFileData fileData) {
+	private void getMusicDirectory(final ServerFileData fileData) {
 		// Build URL
 		String url;
 		try {
@@ -245,7 +248,7 @@ public class SubsonicServer {
 		
 		// Validate
 		if (url == null) {
-			showDialog(context, "Bad URL!", new Throwable("Please check the server url for issues."));
+			showDialog("Bad URL!", new Throwable("Please check the server url for issues."));
 			return;
 		}
 		
@@ -259,13 +262,13 @@ public class SubsonicServer {
 			@Override
 			public void onFailure(int statusCode, Header[] headers, byte[] errorResponse, Throwable e) {
 				// Show Dialog Box
-				showDialog(context, "Failed to retrieve directory listing!", e);
+				showDialog("Failed to retrieve directory listing!", e);
 			}
 
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, byte[] response) {
 				// Send Back Listing
-				sendRawListing(context, fileData, response, DirectoryListing.ResponseType.DIRECTORY_LISTING);
+				sendRawListing(parentContext, fileData, response, DirectoryListing.ResponseType.DIRECTORY_LISTING);
 			}
 		});
 	}
@@ -283,7 +286,7 @@ public class SubsonicServer {
 		
 		// Validate URL
 		if (url == null) {
-			showDialog(context, "Bad URL!", new Throwable("Please check the server url for issues."));
+			showDialog("Bad URL!", new Throwable("Please check the server url for issues."));
 			return;
 		}
 		
@@ -308,7 +311,7 @@ public class SubsonicServer {
 			@Override
 			public void onFailure(int statusCode, Header[] headers, Throwable e, File outputFile) {
 				// Show Dialog Box
-				showDialog(context, "Failed to download file!", e);
+				showDialog("Failed to download file!", e);
 			}
 
 			@Override
