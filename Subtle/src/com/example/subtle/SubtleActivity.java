@@ -283,6 +283,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	                	break;
 	                case PLAYBACK_COMPLETE:
 	                	// Playback Complete (carry on!)
+	                	setPlayingButton(false);
                 		if (((QueueFragment) fragmentViews[QUEUE_FRAGMENT]).isNext()) { // If next, play
                 			next(null);
                 		}
