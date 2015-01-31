@@ -835,9 +835,9 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 			// Set Loading if Need be
 			if (this.loading) {
 				if (this.browserLoading) {
-					this.setBrowserLoading(true, false);
-				}else {
 					this.setBrowserLoading(true, true);
+				}else {
+					this.setBrowserLoading(true, false);
 				}
 			}
 	    }
