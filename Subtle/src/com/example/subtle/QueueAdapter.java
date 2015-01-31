@@ -8,7 +8,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
-import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
@@ -143,7 +142,7 @@ public class QueueAdapter extends ArrayAdapter<ServerFileData> implements Swappa
 	        viewHolder = new QueueAdapterViewHolder();
 	        viewHolder.title = (TextView) convertView.findViewById(R.id.title);
 	        viewHolder.detail = (TextView) convertView.findViewById(R.id.detail);
-	        viewHolder.icon = (ImageView) convertView.findViewById(R.id.icon);
+//	        viewHolder.icon = (ImageView) convertView.findViewById(R.id.icon);
 	        viewHolder.progressBar = (ProgressBar) convertView.findViewById(R.id.progress_bar);
 	         
 	        // Store View Holder
@@ -190,7 +189,7 @@ public class QueueAdapter extends ArrayAdapter<ServerFileData> implements Swappa
 	static class QueueAdapterViewHolder {
 		TextView title;
 		TextView detail;
-		ImageView icon;
+//		ImageView icon;
 		ProgressBar progressBar;
 		int id;
 	}

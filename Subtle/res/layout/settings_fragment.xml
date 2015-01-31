@@ -26,7 +26,7 @@
         android:id="@+id/passwordTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Password"
+        android:text="@string/password_title"
         android:textAppearance="?android:attr/textAppearanceLarge" />
     <EditText
         android:id="@+id/password"
@@ -40,7 +40,7 @@
         android:id="@+id/urlTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Server URL"
+        android:text="@string/url_title"
         android:textAppearance="?android:attr/textAppearanceLarge" />
     <EditText
         android:id="@+id/url"
@@ -54,7 +54,7 @@
         android:id="@+id/clientNameTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Client Name"
+        android:text="@string/client_name_title"
         android:textAppearance="?android:attr/textAppearanceLarge" />
     <EditText
         android:id="@+id/clientName"

@@ -4,7 +4,7 @@
     android:id="@+id/row_item"
     android:padding="3dip" >
     
-    <ImageView
+<!--     <ImageView
         android:id="@+id/icon"
         android:layout_width="wrap_content"
         android:layout_height="fill_parent"
@@ -12,7 +12,7 @@
         android:layout_alignParentTop="true"
         android:layout_marginEnd="6dip"
         android:contentDescription="TODO"
-        android:src="@drawable/ic_launcher" />
+        android:src="@drawable/ic_launcher" /> -->
 
  	<TextView
         android:id="@+id/detail"
@@ -20,15 +20,11 @@
         android:layout_height="26dip"
         android:layout_below="@id/title"
         android:layout_alignParentEnd="true"
-        android:layout_toEndOf="@id/icon"
-
         android:scrollHorizontally="true"
         android:ellipsize="marquee"
         android:marqueeRepeatLimit ="marquee_forever"
         android:singleLine="true"
         android:gravity="start"
-
-        android:text="details..."
         android:textSize="12sp" />
     
     <TextView
@@ -37,15 +33,11 @@
         android:layout_height="wrap_content"
         android:layout_alignParentEnd="true"
         android:layout_alignParentTop="true"
-        
         android:scrollHorizontally="true"
         android:ellipsize="marquee"
         android:marqueeRepeatLimit ="marquee_forever"
         android:singleLine="true"
         android:gravity="start"
-        
-        android:layout_toEndOf="@id/icon"
-        android:text="Example application"
         android:textSize="16sp" />
 
     <ProgressBar
@@ -55,6 +47,6 @@
         android:layout_alignParentEnd="true"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
-        android:layout_alignLeft="@+id/detail" />
+        android:layout_alignStart="@+id/detail" />
 
 </RelativeLayout>

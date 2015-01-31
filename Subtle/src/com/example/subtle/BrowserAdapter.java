@@ -5,7 +5,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 public class BrowserAdapter extends ArrayAdapter<ServerFileData> {
@@ -34,7 +33,7 @@ public class BrowserAdapter extends ArrayAdapter<ServerFileData> {
 	        viewHolder = new BrowserAdapterViewHolder();
 	        viewHolder.title = (TextView) convertView.findViewById(R.id.title);
 	        viewHolder.detail = (TextView) convertView.findViewById(R.id.detail);
-	        viewHolder.icon = (ImageView) convertView.findViewById(R.id.icon);
+//	        viewHolder.icon = (ImageView) convertView.findViewById(R.id.icon);
 	         
 	        // Store View Holder
 	        convertView.setTag(viewHolder);
@@ -65,6 +64,6 @@ public class BrowserAdapter extends ArrayAdapter<ServerFileData> {
 	static class BrowserAdapterViewHolder {
 		TextView title;
 		TextView detail;
-		ImageView icon;
+//		ImageView icon;
 	}
 }

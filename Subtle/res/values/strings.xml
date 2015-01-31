@@ -4,7 +4,11 @@
     <string name="app_name">Subtle</string>
     <string name="action_settings">Settings</string>
     <string name="cache_dir">Cache</string>
-
+    
+    
+	<string name="password_title">Password</string>
+	<string name="url_title">Server URL</string>
+	<string name="client_name_title">Client Name</string>
     
     
     <string name="next_button">Next</string>

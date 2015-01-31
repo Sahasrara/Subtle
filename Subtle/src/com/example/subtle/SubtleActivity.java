@@ -40,12 +40,14 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AlphaAnimation;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.AdapterView.OnItemLongClickListener;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
@@ -75,6 +77,11 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	public static final int PARSED_LISTING = 8;
 	
 	/**
+	 * Animation Constants
+	 */
+	public static final int LOADING_FADE_TIME = 500;
+	
+	/**
 	 * Comparators
 	 */
 	public static final Comparator<ServerFileData> SERVER_FILE_DATA_TITLE_COMPARATOR = new Comparator<ServerFileData>() {
@@ -93,7 +100,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	 */
 	public Handler appRefreshHandler;
 	private ActionBar actionBar;
-	
 	private Button playButton;
 	private Button prevButton;
 	private Button nextButton;
@@ -121,7 +127,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	            	if (!output.exists()) {
 	            		output.createNewFile();
 	    			}
-	            	
 	            	FileWriter fw = new FileWriter(output.getAbsoluteFile());
 	    			BufferedWriter bw = new BufferedWriter(fw);
 	    			StringWriter errors = new StringWriter();
@@ -273,7 +278,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	                	((Dialog) inputMessage.obj).show();
 	                	
 						// Stop Refresh Animation (if there)
-	                	((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).setBrowserLoading(false);
+	                	((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).setBrowserLoading(false, false);
 						
 	                    break;
 	                case SEEK_MESSAGE:
@@ -335,7 +340,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 							((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).setCurrentDirectory(newList.getParent());
 						}
 						// Stop Refresh Animation (if there)
-						((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).setBrowserLoading(false);
+						((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).setBrowserLoading(false, false);
 						
 						break;
 	            }
@@ -589,7 +594,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 			}
 		}
     }
-    
+      
     /**
      * Seek Bar Methods
      */
@@ -696,9 +701,16 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		private ServerFileData currentDirectory;
 		private OnItemClickListener onItemClickListener;
 		private SwipeRefreshLayout.OnRefreshListener onRefreshListener;
-		
+        private FrameLayout loadingOverlay;
+        private AlphaAnimation inAnimation;
+        private AlphaAnimation outAnimation;
+        private boolean loading;
+        private boolean browserLoading;
+        
 		public BrowserFragment() {
 			super();
+			this.loading = false;
+			this.browserLoading = false;
 		}
 		
 	    @Override
@@ -740,6 +752,11 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	        }
 	        
 	        /**
+	         * Setup Overlay
+	         */
+	        this.loadingOverlay = (FrameLayout) getView().findViewById(R.id.loadingOverlayContainer);
+	        
+	        /**
 	         * Create Listeners
 	         */
 	    	if (this.onItemClickListener == null) {
@@ -763,6 +780,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 								// Refresh Browser
 								refreshBrowser();
 							} else {
+								setBrowserLoading(true, false);
 								server.getDirectoryListing(selectedItem);
 							}
 						} else { // File
@@ -776,7 +794,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				this.onRefreshListener = new SwipeRefreshLayout.OnRefreshListener() {
 			        @Override
 			        public void onRefresh() {
-			        	swipeRefreshLayout.setRefreshing(true);
+			        	setBrowserLoading(true, true);
 			        	if (currentDirectory == null) {
 			                ServerFileData root = new ServerFileData();
 			                root.setResourceType(ServerFileData.ROOT_TYPE);
@@ -813,6 +831,15 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 					android.R.color.holo_green_light);
 			// Setup Refresh Listener
 			this.swipeRefreshLayout.setOnRefreshListener(onRefreshListener);
+			
+			// Set Loading if Need be
+			if (this.loading) {
+				if (this.browserLoading) {
+					this.setBrowserLoading(true, false);
+				}else {
+					this.setBrowserLoading(true, true);
+				}
+			}
 	    }
 	    
 	    public void backButtonPressed() {
@@ -872,12 +899,38 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	    	}
 		}
 		
-		public void setBrowserLoading(boolean loading) {
-			if (loading) {
-				this.swipeRefreshLayout.setRefreshing(true);
-			} else {
-				this.swipeRefreshLayout.setRefreshing(false);
-			}
+		public boolean isLoading() {
+			return this.loading;
+		}
+		
+		public void setBrowserLoading(boolean loading, boolean wasPull) {
+	    	if (loading) {   
+		    	this.inAnimation = new AlphaAnimation(0f, 1f);
+		    	this.inAnimation.setDuration(LOADING_FADE_TIME);
+	    		this.loadingOverlay.setAnimation(this.inAnimation);
+	    		this.loadingOverlay.setVisibility(View.VISIBLE);
+	    		if (wasPull) {
+	    			this.swipeRefreshLayout.setRefreshing(true);
+	    			this.browserLoading = true;
+	    		} else {
+	    			this.browserLoading = false;
+	    		}
+	    		this.loading = true;
+				this.browser.setEnabled(false);
+				this.swipeRefreshLayout.setEnabled(false);
+	    	} else {
+		    	this.outAnimation = new AlphaAnimation(1f, 0f);
+		    	this.outAnimation.setDuration(LOADING_FADE_TIME);
+	    		this.loadingOverlay.setAnimation(this.outAnimation);
+	    		this.loadingOverlay.setVisibility(View.GONE);
+	    		if (this.swipeRefreshLayout.isRefreshing()) {
+	    			this.swipeRefreshLayout.setRefreshing(false);
+	    			this.browserLoading = false;
+	    		}
+	    		this.loading = false;
+				this.browser.setEnabled(true);
+				this.swipeRefreshLayout.setEnabled(true);
+	    	}
 		}  
 	}
 	

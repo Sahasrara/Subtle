@@ -25,33 +25,34 @@ public final class R {
         public static final int ic_launcher=0x7f020000;
     }
     public static final class id {
-        public static final int action_settings=0x7f08001a;
-        public static final int browser=0x7f080009;
+        public static final int action_settings=0x7f08001b;
+        public static final int browser=0x7f08000a;
+        public static final int browserContainer=0x7f080008;
         public static final int button_wrapper=0x7f080001;
-        public static final int clientName=0x7f080019;
-        public static final int clientNameTitle=0x7f080018;
+        public static final int clientName=0x7f08001a;
+        public static final int clientNameTitle=0x7f080019;
         public static final int container=0x7f080000;
-        public static final int detail=0x7f08000c;
-        public static final int icon=0x7f08000a;
+        public static final int detail=0x7f08000d;
         public static final int inner_button_wrapper=0x7f080002;
+        public static final int loadingOverlayContainer=0x7f08000b;
         public static final int next_button=0x7f080005;
-        public static final int password=0x7f080015;
-        public static final int passwordTitle=0x7f080014;
+        public static final int password=0x7f080016;
+        public static final int passwordTitle=0x7f080015;
         public static final int play_button=0x7f080004;
         public static final int previous_button=0x7f080003;
-        public static final int progress_bar=0x7f080010;
-        public static final int queue=0x7f08000e;
-        public static final int queue_fragment=0x7f08000d;
-        public static final int row_item=0x7f08000f;
+        public static final int progress_bar=0x7f080011;
+        public static final int queue=0x7f08000f;
+        public static final int queue_fragment=0x7f08000e;
+        public static final int row_item=0x7f080010;
         public static final int seek_bar=0x7f080007;
         public static final int seek_wrapper=0x7f080006;
-        public static final int settings_fragment=0x7f080011;
-        public static final int swipe_container=0x7f080008;
-        public static final int title=0x7f08000b;
-        public static final int url=0x7f080017;
-        public static final int urlTitle=0x7f080016;
-        public static final int username=0x7f080013;
-        public static final int usernameTitle=0x7f080012;
+        public static final int settings_fragment=0x7f080012;
+        public static final int swipe_container=0x7f080009;
+        public static final int title=0x7f08000c;
+        public static final int url=0x7f080018;
+        public static final int urlTitle=0x7f080017;
+        public static final int username=0x7f080014;
+        public static final int usernameTitle=0x7f080013;
     }
     public static final class layout {
         public static final int activity_subtle=0x7f030000;
@@ -68,9 +69,12 @@ public final class R {
         public static final int action_settings=0x7f050001;
         public static final int app_name=0x7f050000;
         public static final int cache_dir=0x7f050002;
-        public static final int next_button=0x7f050003;
-        public static final int play_button=0x7f050005;
-        public static final int previous_button=0x7f050004;
+        public static final int client_name_title=0x7f050005;
+        public static final int next_button=0x7f050006;
+        public static final int password_title=0x7f050003;
+        public static final int play_button=0x7f050008;
+        public static final int previous_button=0x7f050007;
+        public static final int url_title=0x7f050004;
     }
     public static final class style {
         /** 
