@@ -368,7 +368,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         this.seeking = false;
         
         // Start UI Updater
-        UIRefreshThread.start(this.appRefreshHandler, PROGRESS_REFRESH_RATE);
+        Seamstress.getInstance().execute(new UIRefreshThread(this.appRefreshHandler, PROGRESS_REFRESH_RATE));
         
         // Show Browser
         this.actionBar.selectTab(this.queueTab);
@@ -383,9 +383,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     	
     	// Kill Sound Machine
     	SoundMachine.getInstance().shutdown();
-    	
-    	// Kill UIRefreshThread     	
-    	UIRefreshThread.shutdown();
     	
     	// Kill Seamstress
     	Seamstress.getInstance().shutdown();

@@ -56,6 +56,15 @@ public class SubsonicServer {
 			}
 			instance = new SubsonicServer(context);
 		}
+		
+		// Make sure Thread Pool is Active
+		if (instance.client.getThreadPool().isShutdown()) {
+			instance.client.setThreadPool(Seamstress.getInstance().getPool());
+		}
+		if (instance.downloadClient.getThreadPool().isShutdown()) {
+			instance.downloadClient.setThreadPool(Seamstress.getInstance().getDownloadPool());
+		}
+		
 		return instance;
 	}
 	private SubsonicServer(SubtleActivity context) {

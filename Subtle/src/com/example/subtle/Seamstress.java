@@ -40,7 +40,7 @@ public class Seamstress {
 			this.pool.execute(toRun);
 		}
 	}
-	public void shutdown() {
+	public void shutdown() {		
 		this.pool.shutdownNow();
 		this.downloadPool.shutdownNow();
 		this.pool = null;
