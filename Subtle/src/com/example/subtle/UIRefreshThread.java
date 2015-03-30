@@ -3,7 +3,6 @@ package com.example.subtle;
 import java.util.Map;
 import java.util.Set;
 
-import android.os.Handler;
 import android.os.Message;
 
 public class UIRefreshThread implements Runnable {
@@ -11,14 +10,12 @@ public class UIRefreshThread implements Runnable {
 	 * Thread Resources
 	 */
 	private static boolean progressUpdatePaused;
-	private Handler updateHandler;
 	private Integer updateInterval;
 
 	/**
 	 * Runnable Constructor
 	 */
-	public UIRefreshThread(Handler updateHandler, Integer updateInterval) {
-		this.updateHandler = updateHandler;
+	public UIRefreshThread(Integer updateInterval) {
 		this.updateInterval = updateInterval;
 		UIRefreshThread.progressUpdatePaused = false;
 	}
@@ -32,20 +29,20 @@ public class UIRefreshThread implements Runnable {
 			if (!UIRefreshThread.progressUpdatePaused) {
 				Message seekUpdate = Message.obtain();
 				seekUpdate.what = SubtleActivity.SEEK_MESSAGE;
-				seekUpdate.arg1 = SoundMachine.getInstance().getProgress(); // Song Progress
-				updateHandler.sendMessage(seekUpdate);
+				seekUpdate.arg1 = SubtleActivity.soundMachine.getProgress(); // Song Progress
+				SubtleActivity.appRefreshHandler.sendMessage(seekUpdate);
 			}
 			
 			/**
 			 * Update Download Progress
 			 */
-			Set<Map.Entry<Integer, Integer>> downloadMapEntrySet = SubsonicServer.getInstance(null).getDownloadEntrySet(); // Download ID - UID
+			Set<Map.Entry<Integer, Integer>> downloadMapEntrySet = SubtleActivity.server.getDownloadEntrySet(); // Download ID - UID
 			if (downloadMapEntrySet.size() > 0) {
 				// Setup Download Message
 				Message downloadUpdate = Message.obtain();
 				downloadUpdate.what = SubtleActivity.DOWNLOAD_PROGRESS_MESSAGE;
 				downloadUpdate.obj = downloadMapEntrySet;
-				updateHandler.sendMessage(downloadUpdate);
+				SubtleActivity.appRefreshHandler.sendMessage(downloadUpdate);
 			}
 			
 			// Sleep

@@ -36,21 +36,7 @@ public class Database extends SQLiteOpenHelper {
 		CREATED, RESOURCE_TYPE, PARENT, 
 		CACHED, TRACK_NUMBER};
 	
-	
-	/**
-	 * Singleton
-	 */
-	private static Database instance = null;
-	public synchronized static Database getInstance(SubtleActivity context) {
-		if(instance == null) {
-			if (context == null) {
-				throw new RuntimeException("Database failed to initialize!");
-			}
-			instance = new Database(context);
-		}
-		return instance;
-	}
-	private Database(SubtleActivity context) {
+	public Database(SubtleActivity context) {
 		super(context, DATABASE_NAME, null, DATABASE_VERSION);
 	}
 

@@ -1,8 +1,10 @@
 package com.example.subtle;
 
 import java.io.File;
+import java.io.Serializable;
 
-public class ServerFileData {
+public class ServerFileData implements Serializable {
+	private static final long serialVersionUID = -4331882274207846123L;
 	// Root UID
 	public static final int ROOT_UID = -1;
 	// File Types

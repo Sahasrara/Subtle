@@ -26,7 +26,6 @@ import org.apache.http.conn.ssl.SSLSocketFactory;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
-import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
@@ -45,29 +44,8 @@ public class SubsonicServer {
 	private SubtleActivity parentContext;
 	private ConcurrentHashMap<Integer, Integer> downloading; // UID - Progress
 	private static final String[] validSchemes = {"http", "https"}; // DEFAULT schemes = "http", "https"
-	/**
-	 * Singleton
-	 */
-	private static SubsonicServer instance = null;
-	public synchronized static SubsonicServer getInstance(SubtleActivity context) {
-		if (instance == null) {
-			if (context == null) {
-				throw new RuntimeException("SubsonicServer failed to initialize!");
-			}
-			instance = new SubsonicServer(context);
-		}
-		
-		// Make sure Thread Pool is Active
-		if (instance.client.getThreadPool().isShutdown()) {
-			instance.client.setThreadPool(Seamstress.getInstance().getPool());
-		}
-		if (instance.downloadClient.getThreadPool().isShutdown()) {
-			instance.downloadClient.setThreadPool(Seamstress.getInstance().getDownloadPool());
-		}
-		
-		return instance;
-	}
-	private SubsonicServer(SubtleActivity context) {
+
+	public SubsonicServer(SubtleActivity context) {
 		// Initialize Async Http Client
 		this.client = new AsyncHttpClient();
 		this.downloadClient = new AsyncHttpClient();
@@ -140,10 +118,9 @@ public class SubsonicServer {
 
 		// Add Dialog to Queue
 		Message dialogMessage = Message.obtain();
-		Handler handler = this.parentContext.appRefreshHandler;
 		dialogMessage.what = SubtleActivity.DIALOG_MESSAGE;
 		dialogMessage.obj = alertDialogBuilder.create();
-		handler.sendMessage(dialogMessage);
+		SubtleActivity.appRefreshHandler.sendMessage(dialogMessage);
 	}
 	
 	/**
@@ -163,12 +140,11 @@ public class SubsonicServer {
 	}
 	
 	private void sendRawListing(Context context, ServerFileData parent, byte[] response, DirectoryListing.ResponseType type) {
-		Handler handler = ((SubtleActivity) context).appRefreshHandler;
 		Message message = Message.obtain();
 		message.what = SubtleActivity.LISTING_RETRIEVED;
 		RawDirectoryListing directoryResponse = new RawDirectoryListing(parent, response, type);
 		message.obj = directoryResponse;
-		handler.sendMessage(message);
+		SubtleActivity.appRefreshHandler.sendMessage(message);
 	}
 	
 	private void getIndexes(final ServerFileData fileData) {
@@ -325,11 +301,10 @@ public class SubsonicServer {
 
 			@Override
 			public void onSuccess(int statusCode, Header[] headers, File outputFile) {
-				Handler handler = ((SubtleActivity) context).appRefreshHandler;
 				Message message = Message.obtain();
 				message.what = SubtleActivity.DOWNLOAD_COMPLETE;
 				message.arg1 = uid;
-				handler.sendMessage(message);
+				SubtleActivity.appRefreshHandler.sendMessage(message);
 			}
 			
 			@Override

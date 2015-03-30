@@ -1,6 +1,5 @@
 package com.example.subtle;
 
-
 import com.nhaarman.listviewanimations.util.Swappable;
 
 import android.content.Context;
@@ -13,13 +12,12 @@ import android.widget.TextView;
 
 public class QueueAdapter extends ArrayAdapter<ServerFileData> implements Swappable {
 	private SubtleActivity context;
-	private int rowResourceId;
 	private ServerFileData current;
-
-	public QueueAdapter(SubtleActivity context, int rowResourceId) {
-		super(context, rowResourceId);
+	private static final int rowResourceId = R.layout.queue_row_view;
+	
+	public QueueAdapter(SubtleActivity context) {
+		super(context, QueueAdapter.rowResourceId);
 		this.context = context;
-		this.rowResourceId = rowResourceId;
 		this.current = null;
 	}
 	
@@ -136,7 +134,7 @@ public class QueueAdapter extends ArrayAdapter<ServerFileData> implements Swappa
 		if (convertView == null) {
 			// Get Inflator
 			LayoutInflater inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-	        convertView = inflater.inflate(this.rowResourceId, parent, false);
+	        convertView = inflater.inflate(R.layout.queue_row_view, parent, false);
 	        
 	        // Setup View Holder
 	        viewHolder = new QueueAdapterViewHolder();

@@ -8,7 +8,6 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlPullParserFactory;
 
-import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
@@ -205,11 +204,10 @@ public class RawDirectoryListing implements DirectoryListing {
 	}
 	
 	private void sendParsedListing(List<ServerFileData> listing, SubtleActivity subtleActivity) {
-		Handler handler = subtleActivity.appRefreshHandler;
 		Message message = Message.obtain();
 		message.what = SubtleActivity.PARSED_LISTING;
 		message.obj = new ParsedDirectoryListing(parent, type, listing);
-		handler.sendMessage(message);
+		SubtleActivity.appRefreshHandler.sendMessage(message);
 	}
 
 	public byte[] getResponse() {

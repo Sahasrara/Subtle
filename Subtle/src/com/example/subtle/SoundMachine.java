@@ -8,7 +8,6 @@ import android.media.AudioFormat;
 import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.media.MediaPlayer;
-import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
@@ -73,18 +72,7 @@ public class SoundMachine {
 		this.audioTrackCurrentPostion = currentPosition;
 	}
 		
-	/**
-	 * Singleton
-	 */
-	private static SoundMachine instance = null;
-	public synchronized static SoundMachine getInstance() {
-		if(instance == null) {
-			instance = new SoundMachine();
-		}
-		return instance;
-	}
-
-	private SoundMachine() {
+	public SoundMachine() {
 		this.audioTrack = new AudioTrack(
 				AudioManager.STREAM_MUSIC, 
 				SAMPLE_RATE, 
@@ -116,7 +104,6 @@ public class SoundMachine {
 	private Object currentPlayer;
 	private ServerFileData currentTrack;
 	private int audioTrackCurrentPostion;
-	private Handler callbackHandler;
 	/**
 	 * 0 - stopped
 	 * 1 - playing
@@ -293,16 +280,13 @@ public class SoundMachine {
 	/**
 	 * UI Handler
 	 */
-	public void setHandler(Handler handler) {
-		this.callbackHandler = handler;
-	}
 	public void notifyPlaybackComplete() {
 		stop();
 		
-		if (this.callbackHandler != null) {
+		if (SubtleActivity.appRefreshHandler != null) {
 			Message playbackComplete = Message.obtain();
 			playbackComplete.what = SubtleActivity.PLAYBACK_COMPLETE;
-			this.callbackHandler.sendMessage(playbackComplete);
+			SubtleActivity.appRefreshHandler.sendMessage(playbackComplete);
 		}
 	}
 	

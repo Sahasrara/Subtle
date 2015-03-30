@@ -98,7 +98,11 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	/**
 	 * Subtle Resources
 	 */
-	public Handler appRefreshHandler;
+    public static SoundMachine soundMachine;
+    public static SubsonicServer server;
+    public static Database database;
+	public static Handler appRefreshHandler;
+    
 	private ActionBar actionBar;
 	private Button playButton;
 	private Button prevButton;
@@ -193,6 +197,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 				}
 			}
 		}
+		
 		// Couldn't Mount Whatever!
 		if (SubtleActivity.CURRENT_CACHE_LOCATION == null) {
 			throw new RuntimeException("Could not create cache dir!");	
@@ -268,7 +273,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
          * This is the messaging system that handles UI updates as a 
          * response to asynchronous events
          */
-        this.appRefreshHandler = new Handler(Looper.getMainLooper()) {
+        appRefreshHandler = new Handler(Looper.getMainLooper()) {
         	@Override
         	public void handleMessage(Message inputMessage) {
         		Integer resourceID;
@@ -313,9 +318,9 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	                	((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).setCachedInCurrentList(resourceID);
 	                	
 	                	// Update Database
-	                	ServerFileData row = Database.getInstance(null).getRow(resourceID);
+	                	ServerFileData row = database.getRow(resourceID);
 	                	row.setCached(true);
-	                	Database.getInstance(null).addMusic(row);
+	                	database.addMusic(row);
 	                	
 	                	break;
 	                case LISTING_RETRIEVED:
@@ -327,11 +332,11 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	                	ParsedDirectoryListing newList = (ParsedDirectoryListing) inputMessage.obj;
 	                	
 						// Clear out Old Data
-	                	Database.getInstance(null).deleteChildren(newList.getParent().getUid());
+	                	database.deleteChildren(newList.getParent().getUid());
 						// Sort by Name
 						Collections.sort(newList.getListing(), SERVER_FILE_DATA_TITLE_COMPARATOR);
 	                	// Update Database
-						Database.getInstance(null).addMusic(newList.getListing().toArray(new ServerFileData[newList.getListing().size()]));
+						database.addMusic(newList.getListing().toArray(new ServerFileData[newList.getListing().size()]));
 	                	// Update UI Element
 						((BrowserFragment) fragmentViews[BROWSER_FRAGMENT]).swapCurrentList(newList.getListing());
 						// Set Current Directory
@@ -358,23 +363,20 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         /**
          * Initialize Server and Database
          */
-        Database.getInstance(this);
-        SubsonicServer.getInstance(this);
-        
-        // Setup Sound Machine with Handler for Callbacks
-        SoundMachine.getInstance().setHandler(this.appRefreshHandler);
+        database = new Database(this);
+        server = new SubsonicServer(this);
+        soundMachine = new SoundMachine();
         
         // Seeking
         this.seeking = false;
         
         // Start UI Updater
-        Seamstress.getInstance().execute(new UIRefreshThread(this.appRefreshHandler, PROGRESS_REFRESH_RATE));
+        Seamstress.getInstance().execute(new UIRefreshThread(PROGRESS_REFRESH_RATE));
         
         // Show Browser
         this.actionBar.selectTab(this.queueTab);
         this.actionBar.selectTab(this.browserTab);
     }
-
     
     @Override
     public void onDestroy() {
@@ -382,36 +384,48 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     	super.onDestroy();
     	
     	// Kill Sound Machine
-    	SoundMachine.getInstance().shutdown();
+    	soundMachine.shutdown();
     	
     	// Kill Seamstress
-    	Seamstress.getInstance().shutdown();
+    	Seamstress.getInstance().shutdown();    	
+    	
+    	
+    	//TODO : this is temporary, create a file that says it was destroyed
+    	Log.v(SUBTAG, "Guess what, it got destoryed:)");
+    	File output = new File(SubtleActivity.CURRENT_CACHE_LOCATION.getAbsolutePath(), "DESTORYED");
+    	try {
+        	if (!output.exists()) {
+        		output.createNewFile();
+			}
+        	FileWriter fw = new FileWriter(output.getAbsoluteFile());
+			BufferedWriter bw = new BufferedWriter(fw);
+			bw.write("The activity was destroyed by the system, and you need to bundle fragment state :)");
+			bw.close();
+    	} catch (Exception e) {
+    		
+    	}
     }
 	
     /**
      * Playback Methods
      */
-    public void pause(View view) {
-    	SoundMachine.getInstance().pause();
-    }
     public void next(View view) {
     	UIRefreshThread.setProgressPaused(true);
     	((QueueFragment) this.fragmentViews[QUEUE_FRAGMENT]).advance();
-    	SoundMachine.getInstance().stop();
+    	soundMachine.stop();
 		play(null);
 		UIRefreshThread.setProgressPaused(false);
     }
     public void previous(View view) {
     	UIRefreshThread.setProgressPaused(true);
     	((QueueFragment) this.fragmentViews[QUEUE_FRAGMENT]).retreat();
-		SoundMachine.getInstance().stop();
+		soundMachine.stop();
 		play(null);
 		UIRefreshThread.setProgressPaused(false);
     }
     public void play(View view) {
     	ServerFileData current = ((QueueFragment) this.fragmentViews[QUEUE_FRAGMENT]).getCurrent();
     	if (current != null && current.getCached()) {
-    		SoundMachine soundMachine = SoundMachine.getInstance();
     		if (soundMachine.isPlaying()) { // Pause
     			soundMachine.pause();
     			setPlayingButton(false);
@@ -436,7 +450,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     public void selectTrack(int index) {
     	UIRefreshThread.setProgressPaused(true);
     	((QueueFragment) this.fragmentViews[QUEUE_FRAGMENT]).setCurrent(index);
-    	SoundMachine.getInstance().stop();
+    	soundMachine.stop();
     	play(null);
     	UIRefreshThread.setProgressPaused(false);
     }
@@ -577,8 +591,8 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
                 switch (state) {
                 case 0:
                 	// Unplugged
-                    if (SoundMachine.getInstance().isPlaying()) {
-                    	pause(null);
+                    if (soundMachine.isPlaying()) {
+                    	play(null);
                     }
                     break;
                 case 1:
@@ -603,9 +617,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		this.seeking = true;
 	}
 	@Override
-	public void onStopTrackingTouch(SeekBar seekBar) {
-		SoundMachine soundMachine = SoundMachine.getInstance();
-		
+	public void onStopTrackingTouch(SeekBar seekBar) {		
 		// Seek
 		soundMachine.seek(soundMachine.percentToTime(seekBar.getProgress()) * 1000);
 		
@@ -629,11 +641,11 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		}
 		
 		// Check if Cached
-		boolean cached = Database.getInstance(null).getRow(song.getUid()).getCached();
+		boolean cached = database.getRow(song.getUid()).getCached();
 		
 		// Download if Needed
-		if (!cached && !SubsonicServer.getInstance(null).isDownloading(song)) {
-			SubsonicServer.getInstance(null).download(this, song);
+		if (!cached && !server.isDownloading(song)) {
+			server.download(this, song);
 		}	
 		
 		// Add to Queue
@@ -726,8 +738,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 		         * Setup First Listing
 		         */
 	        	this.browserAdapter = new BrowserAdapter((SubtleActivity) getActivity(), R.layout.browser_row_view);
-		        SubsonicServer server = SubsonicServer.getInstance(null);
-		        Database database = Database.getInstance((SubtleActivity) getActivity());
 		        ServerFileData rootDir = new ServerFileData();
 		        rootDir.setResourceType(ServerFileData.ROOT_TYPE);
 		        rootDir.setParent(ServerFileData.ROOT_UID);
@@ -761,10 +771,9 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 					@Override
 					public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
 						ServerFileData selectedItem = browserAdapter.getItem(position);
-						SubsonicServer server = SubsonicServer.getInstance(null);
 						if (selectedItem.isDirectory()) { // Directory
 							// Check Cache (and unlock if cached)
-							List<ServerFileData> children = Database.getInstance((SubtleActivity) getActivity()).getDirectoryChildren(selectedItem.getUid());
+							List<ServerFileData> children = database.getDirectoryChildren(selectedItem.getUid());
 							Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
 							if (children != null && children.size() > 0) {
 								// Set Current Directory
@@ -795,9 +804,9 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 			        	if (currentDirectory == null) {
 			                ServerFileData root = new ServerFileData();
 			                root.setResourceType(ServerFileData.ROOT_TYPE);
-			                SubsonicServer.getInstance(null).getDirectoryListing(root);
+			                server.getDirectoryListing(root);
 			        	} else {
-				        	SubsonicServer.getInstance(null).getDirectoryListing(currentDirectory);
+				        	server.getDirectoryListing(currentDirectory);
 			        	}
 			        }
 			    };
@@ -850,7 +859,6 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 					Log.e(SUBTAG, e.getMessage());
 					return;
 				}
-				Database database = Database.getInstance(null);
 				this.currentDirectory = database.getRow(parent);
 				List<ServerFileData> children = database.getDirectoryChildren(this.currentDirectory.getUid());
 				Collections.sort(children, SERVER_FILE_DATA_TITLE_COMPARATOR);
@@ -968,7 +976,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 						for (int position : reverseSortedPositions) {
 							// If Current Track, Stop Playback
 							if (queueAdapter.currentIndex() == position) {
-								SoundMachine.getInstance().stop();
+								soundMachine.stop();
 							}
 	
 							// Delete Row in View
@@ -982,7 +990,7 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	        }
 	        
 	        if (this.queueAdapter == null) {
-	        	this.queueAdapter = new QueueAdapter((SubtleActivity) getActivity(), R.layout.queue_row_view);
+	        	this.queueAdapter = new QueueAdapter((SubtleActivity) getActivity());
 	        }
 	        
 	        this.queueListView = (DynamicListView) getView().findViewById(R.id.queue);
