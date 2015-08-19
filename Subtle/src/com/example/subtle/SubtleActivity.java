@@ -24,10 +24,13 @@ import android.app.Dialog;
 import android.app.Fragment;
 import android.app.FragmentTransaction;
 import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.media.AudioManager;
+import android.media.AudioManager.OnAudioFocusChangeListener;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -37,6 +40,7 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v4.widget.SwipeRefreshLayout;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -75,6 +79,10 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	public static final int UNLOCK_BROWSER = 6;
 	public static final int PLAYBACK_COMPLETE = 7;
 	public static final int PARSED_LISTING = 8;
+	public static final int PLAY_MESSAGE = 9;
+	public static final int PAUSE_MESSAGE = 10;
+	public static final int NEXT_MESSAGE = 11;
+	public static final int PREVIOUS_MESSAGE = 12;
 	
 	/**
 	 * Animation Constants
@@ -114,6 +122,8 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
 	private Tab queueTab;
 	private Tab settingsTab;
 	private SystemIntentReceiver systemIntentReceiver;
+	private AudioFocusIntentReceiver audioFocusIntentReceiver;
+	private ComponentName mediaIntentReceiverName;
 	
 	/**
 	 * Lifecycle Methods
@@ -147,6 +157,11 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
          * Load Default Preferences
          */
         loadDefaultPreferences();
+        
+        /**
+         * Set Audio Stream
+         */
+        setVolumeControlStream(AudioManager.STREAM_MUSIC);
                 		
 		/**
 		 * Setup Cache Directory
@@ -278,6 +293,26 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         	public void handleMessage(Message inputMessage) {
         		Integer resourceID;
         		switch (inputMessage.what) {
+                	case PLAY_MESSAGE:
+                		if (!soundMachine.isPlaying()) {
+                			play(null);
+                		}
+                		
+                		break;
+                	case PAUSE_MESSAGE:
+                		if (soundMachine.isPlaying()) {
+                			play(null);
+                		}
+                		
+                		break;
+                	case NEXT_MESSAGE:
+                		next(null);
+                		
+                		break;
+                	case PREVIOUS_MESSAGE:
+                		previous(null);
+                		
+                		break;
 	                case DIALOG_MESSAGE:
 	                	// Present Dialog Box
 	                	((Dialog) inputMessage.obj).show();
@@ -353,12 +388,17 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
         };
         
         /**
-         * Create System Intent Receiver
+         * Create System Intent Receiver (for unplugged headphones)
          */
         this.systemIntentReceiver = new SystemIntentReceiver();
         IntentFilter filter = new IntentFilter(Intent.ACTION_HEADSET_PLUG);
         registerReceiver(this.systemIntentReceiver, filter);
- 
+        
+        /**
+         * Create Audio Focus Intent Receiver
+         */
+        this.audioFocusIntentReceiver = new AudioFocusIntentReceiver();
+        this.mediaIntentReceiverName = new ComponentName(getPackageName(), SystemIntentReceiver.class.getName());
         
         /**
          * Initialize Server and Database
@@ -379,6 +419,22 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     }
     
     @Override
+    public void onStart() {
+    	super.onStart();
+        
+    	/**
+         * Receive Audio Intents
+         */
+        AudioManager am = (AudioManager) this.getSystemService(Context.AUDIO_SERVICE);
+        int result = am.requestAudioFocus(this.audioFocusIntentReceiver, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+        
+        if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            am.registerMediaButtonEventReceiver(this.mediaIntentReceiverName);
+        }
+    }
+    
+    
+    @Override
     public void onDestroy() {
     	// Super
     	super.onDestroy();
@@ -389,6 +445,12 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     	// Kill Seamstress
     	Seamstress.getInstance().shutdown();    	
     	
+    	// Unregister Audio Focus Intent Receiver
+    	AudioManager am = (AudioManager) this.getSystemService(Context.AUDIO_SERVICE);
+    	am.unregisterMediaButtonEventReceiver(this.mediaIntentReceiverName);
+    	
+    	// Unregister Unplugged
+    	unregisterReceiver(this.systemIntentReceiver);
     	
     	//TODO : this is temporary, create a file that says it was destroyed
     	Log.v(SUBTAG, "Guess what, it got destoryed:)");
@@ -581,28 +643,20 @@ public class SubtleActivity extends FragmentActivity implements OnSeekBarChangeL
     }
     
     /**
-     * System Intent Receivers
+     * This intent receiver will ensure that if another app requests audio focus, we pause here
+     * and cease to respond to external media button presses
      */
-    private class SystemIntentReceiver extends BroadcastReceiver {
-		@Override
-		public void onReceive(Context context, Intent intent) {
-			if (intent.getAction().equals(Intent.ACTION_HEADSET_PLUG)) {
-                int state = intent.getIntExtra("state", -1);
-                switch (state) {
-                case 0:
-                	// Unplugged
-                    if (soundMachine.isPlaying()) {
-                    	play(null);
-                    }
-                    break;
-                case 1:
-                	// Plugged
-                    break;
-                default:
-                	// Huh?
-                    Log.v(SUBTAG, "Unknown headphone state detected!");
-                }
-			}
+    private class AudioFocusIntentReceiver implements OnAudioFocusChangeListener {
+    	@Override
+		public void onAudioFocusChange(int focusChange) {
+    		AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+			if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+	            am.unregisterMediaButtonEventReceiver(mediaIntentReceiverName);
+	            am.abandonAudioFocus(audioFocusIntentReceiver);
+	        	if (soundMachine.isPlaying()) {
+	        		play(null);
+	        	}
+	        }
 		}
     }
       
